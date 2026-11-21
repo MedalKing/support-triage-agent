@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "support-triage-agent"
+version = "0.1.0"
+description = "An LLM agent that triages customer support tickets with read-only ERP tools over MCP, runbook retrieval, redaction of personal data, policy checks and human approval."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=2.12,<3",
+    "mcp>=2.3,<3",
+    "fastapi>=0.165",
+    "uvicorn>=0.54",
+    "httpx>=0.28",
+    "pydantic>=2.14",
+    "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=9"]
+
+[tool.setuptools]
+packages = ["support_agent"]
+
+[tool.setuptools.package-data]
+support_agent = ["data/*.json", "data/runbooks/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

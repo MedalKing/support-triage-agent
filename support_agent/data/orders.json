@@ -1,0 +1,53 @@
+{
+  "customers": {
+    "C-201": {"name": "Pohjola Bakery Ltd", "contact_email": "anna.virtanen@pohjolabakery.example", "contact_phone": "+358 40 123 4567", "tier": "standard"},
+    "C-202": {"name": "Saimaa Electronics Oy", "contact_email": "logistics@saimaa-electronics.example", "contact_phone": "+358 50 765 4321", "tier": "key_account"},
+    "C-203": {"name": "Lapland Outdoor Gear", "contact_email": "mikko@laplandgear.example", "contact_phone": "+358 44 222 3333", "tier": "standard"},
+    "C-204": {"name": "Baltic Foods AB", "contact_email": "orders@balticfoods.example", "contact_phone": "+46 70 111 2222", "tier": "standard"}
+  },
+  "orders": {
+    "SO-5001": {"customer_id": "C-201", "status": "shipped", "lines": [{"sku": "BOX-A4-200", "qty": 500, "unit_price_eur": 0.42}], "promised_date": "2026-11-10", "carrier": "NordFreight", "shipment_id": "SH-9001", "price_list": "PL-2026-Q4", "delivery_address": "Teollisuuskatu 5, Oulu"},
+    "SO-5002": {"customer_id": "C-202", "status": "partially_shipped", "lines": [{"sku": "BOX-ESD-300", "qty": 400, "qty_shipped": 300, "unit_price_eur": 1.10}], "promised_date": "2026-11-12", "carrier": "NordFreight", "shipment_id": "SH-9002", "price_list": "PL-2026-Q4", "delivery_address": "Sähkötie 12, Lappeenranta"},
+    "SO-5003": {"customer_id": "C-203", "status": "invoiced", "lines": [{"sku": "BOX-HD-500", "qty": 200, "unit_price_eur": 2.35}], "quoted_unit_price_eur": 2.05, "promised_date": "2026-11-05", "carrier": "ArcticPost", "shipment_id": "SH-9003", "price_list": "PL-2026-Q3", "delivery_address": "Tunturitie 3, Rovaniemi", "invoice_id": "INV-7003", "invoice_total_eur": 470.0},
+    "SO-5004": {"customer_id": "C-204", "status": "delivered", "lines": [{"sku": "BOX-FOOD-250", "qty": 1000, "unit_price_eur": 0.65}], "promised_date": "2026-11-08", "carrier": "BalticLine", "shipment_id": "SH-9004", "price_list": "PL-2026-Q4", "delivery_address": "Hamngatan 8, Stockholm", "invoice_total_eur": 650.0},
+    "SO-5005": {"customer_id": "C-201", "status": "shipped", "lines": [{"sku": "BOX-A4-200", "qty": 300, "unit_price_eur": 0.42}], "promised_date": "2026-11-24", "carrier": "NordFreight", "shipment_id": "SH-9005", "price_list": "PL-2026-Q4", "delivery_address": "Teollisuuskatu 5, Oulu"},
+    "SO-5006": {"customer_id": "C-203", "status": "delivered", "lines": [{"sku": "BOX-HD-500", "qty": 50, "unit_price_eur": 2.35}], "promised_date": "2026-10-20", "carrier": "ArcticPost", "shipment_id": "SH-9006", "price_list": "PL-2026-Q3", "delivery_address": "Tunturitie 3, Rovaniemi", "invoice_total_eur": 117.5}
+  },
+  "shipments": {
+    "SH-9001": [
+      {"ts": "2026-11-06T08:10", "event": "picked_up", "location": "Espoo DC"},
+      {"ts": "2026-11-07T19:40", "event": "arrived_hub", "location": "NordFreight hub Tampere"},
+      {"ts": "2026-11-09T06:00", "event": "exception", "location": "NordFreight hub Tampere", "note": "Held at hub: linehaul capacity shortage"}
+    ],
+    "SH-9002": [
+      {"ts": "2026-11-09T09:00", "event": "picked_up", "location": "Espoo DC", "note": "Partial: 300 of 400 units"},
+      {"ts": "2026-11-11T14:20", "event": "delivered", "location": "Lappeenranta"}
+    ],
+    "SH-9003": [
+      {"ts": "2026-11-03T10:00", "event": "picked_up", "location": "Espoo DC"},
+      {"ts": "2026-11-05T12:30", "event": "delivered", "location": "Rovaniemi"}
+    ],
+    "SH-9004": [
+      {"ts": "2026-11-05T07:00", "event": "picked_up", "location": "Espoo DC"},
+      {"ts": "2026-11-08T11:15", "event": "delivered", "location": "Stockholm", "note": "Receiver noted damage: 3 pallets crushed, photos attached to POD"}
+    ],
+    "SH-9005": [
+      {"ts": "2026-11-20T08:00", "event": "picked_up", "location": "Espoo DC"},
+      {"ts": "2026-11-20T21:00", "event": "in_transit", "location": "NordFreight linehaul E75"}
+    ],
+    "SH-9006": [
+      {"ts": "2026-10-18T09:00", "event": "picked_up", "location": "Espoo DC"},
+      {"ts": "2026-10-20T13:00", "event": "delivered", "location": "Rovaniemi"}
+    ]
+  },
+  "stock": {
+    "BOX-A4-200": {"on_hand": 12000, "next_restock": null},
+    "BOX-ESD-300": {"on_hand": 0, "next_restock": "2026-11-27"},
+    "BOX-HD-500": {"on_hand": 800, "next_restock": null},
+    "BOX-FOOD-250": {"on_hand": 5400, "next_restock": null}
+  },
+  "price_lists": {
+    "PL-2026-Q3": {"valid_until": "2026-09-30", "BOX-HD-500": 2.35},
+    "PL-2026-Q4": {"valid_from": "2026-10-01", "BOX-HD-500": 2.05, "BOX-A4-200": 0.42, "BOX-ESD-300": 1.10, "BOX-FOOD-250": 0.65}
+  }
+}
