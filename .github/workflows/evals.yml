@@ -21,7 +21,7 @@ jobs:
       ANTHROPIC_ORGANIZATION_ID: f3c3f379-3055-45a0-95c1-eeff4acabbbd
       ANTHROPIC_SERVICE_ACCOUNT_ID: svac_011w6E38cHeAst3wkB4MtZyC
       ANTHROPIC_WORKSPACE_ID: wrkspc_0118toBRsgwV6VcB69JnAztr
-      ANTHROPIC_IDENTITY_TOKEN_FILE: ${{ runner.temp }}/gha-oidc.jwt
+      ANTHROPIC_IDENTITY_TOKEN_FILE: /tmp/gha-oidc.jwt
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
