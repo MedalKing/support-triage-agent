@@ -1,0 +1,44 @@
+# Live evals against Claude, started by hand from the Actions tab.
+#
+# No API key is stored in GitHub. The job asks GitHub for a short-lived OIDC token and the
+# Anthropic SDK exchanges it for a 10-minute access token (workload identity federation).
+# The federation rule only accepts workflow_dispatch runs on main of this repository.
+# The IDs below are identifiers, not secrets.
+name: Live evals
+
+on: workflow_dispatch
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ANTHROPIC_FEDERATION_RULE_ID: fdrl_01L8RTZVcVivp3HPWTWkEw4G
+      ANTHROPIC_ORGANIZATION_ID: f3c3f379-3055-45a0-95c1-eeff4acabbbd
+      ANTHROPIC_SERVICE_ACCOUNT_ID: svac_011w6E38cHeAst3wkB4MtZyC
+      ANTHROPIC_WORKSPACE_ID: wrkspc_0118toBRsgwV6VcB69JnAztr
+      ANTHROPIC_IDENTITY_TOKEN_FILE: ${{ runner.temp }}/gha-oidc.jwt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: Fetch GitHub OIDC token for the Anthropic API
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const token = await core.getIDToken('https://api.anthropic.com');
+            core.setSecret(token);
+            require('fs').writeFileSync(process.env.ANTHROPIC_IDENTITY_TOKEN_FILE, token, { mode: 0o600 });
+      - name: Run evals
+        run: python evals/run_evals.py --provider claude
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: evals/results/
