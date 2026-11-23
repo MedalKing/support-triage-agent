@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Protocol
 
 import anthropic
@@ -57,6 +58,14 @@ class Provider(Protocol):
     def add_user_message(self, text: str) -> None: ...
 
 
+@lru_cache(maxsize=1)
+def _shared_anthropic_client() -> anthropic.Anthropic:
+    """One client per process. With workload identity federation the client swaps the
+    single-use CI identity token for an access token once and reuses it, so a new client
+    per ticket would try to swap the same token again and be refused."""
+    return anthropic.Anthropic()
+
+
 class ClaudeProvider:
     """Claude through the Messages API, with server-side refusal fallback enabled."""
 
@@ -65,7 +74,7 @@ class ClaudeProvider:
         self.model = model or os.environ.get("CLAUDE_MODEL", "claude-opus-5-5")
         self.effort = effort or os.environ.get("CLAUDE_EFFORT", "medium")
         self.name = f"claude:{self.model}"
-        self.client = client or anthropic.Anthropic()
+        self.client = client or _shared_anthropic_client()
 
     def start(self, system: str, user: str, tools: list[ToolSpec]) -> None:
         self.system = system
