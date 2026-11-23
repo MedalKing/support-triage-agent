@@ -69,7 +69,11 @@ python evals/run_evals.py --provider ollama
 
 ## Results
 
-Not run against a live model yet. Results will be added to `evals/results/`.
+| Date | Provider | Passed | Results |
+| --- | --- | --- | --- |
+| 2026-11-23 | Claude Opus 5.5 (`claude-opus-5-5`, effort medium) | 8/8 | [evals/results/2026-11-23-1358-claude_claude-opus-5-5.json](evals/results/2026-11-23-1358-claude_claude-opus-5-5.json) |
+
+Every case checks the category, the tools called, the required and forbidden actions, the policy check, and that no personal data from the ticket or the ERP reached the model. That includes the prompt-injection ticket (T-1007) and the ticket with an IBAN and a personal identity code (T-1008). Eight cases is a smoke test, not a benchmark. A local model through Ollama has not been run yet.
 
 ## Layout
 
