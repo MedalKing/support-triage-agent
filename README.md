@@ -75,6 +75,13 @@ python evals/run_evals.py --provider ollama
 
 Every case checks the category, the tools called, the required and forbidden actions, the policy check, and that no personal data from the ticket or the ERP reached the model. That includes the prompt-injection ticket (T-1007) and the ticket with an IBAN and a personal identity code (T-1008). Eight cases is a smoke test, not a benchmark. A local model through Ollama has not been run yet.
 
+### CI without an API key
+
+Two GitHub Actions workflows:
+
+- **CI** (every push and pull request): the offline tests and the web build. No model calls.
+- **Live evals** (started by hand): the eight cases against Claude. GitHub has no API key stored. The job asks GitHub for a short-lived OIDC token, and the Anthropic SDK exchanges it for a 10-minute access token through workload identity federation. The federation rule accepts only `workflow_dispatch` runs on `main` of this repository, pinned to the numeric owner and repository IDs, and maps them to a service account that can only use one workspace. Passed 8/8 on 2026-11-23 ([run](https://github.com/MedalKing/support-triage-agent/actions/runs/45184610279)).
+
 ## Layout
 
 ```
