@@ -2,13 +2,13 @@
 
 ## In plain terms
 
-A packaging company's customer service gets emails like *"Your invoice charges 2.35 EUR per box but we were quoted 2.05."* Answering one means looking up the order, the price list and the delivery history, then deciding what to do.
+A packaging company's customer service gets emails like *"Your invoice charges 2.35 EUR per box but we were quoted 2.05."* Answering one means looking up the order and the price that applied, then deciding what to do.
 
 This project is an AI assistant that does that legwork. It reads the email, checks the company's records and the internal instructions, and suggests what happened, what to do and how to reply. **A person always makes the decision**: the assistant can look things up but cannot change anything itself.
 
-It is built to be safe to use with real customers. Names, emails and phone numbers are hidden from the AI. A customer can't trick it with instructions written into the email. Automated tests check it gets the right answer.
+It is built with safeguards. Email addresses, phone numbers, bank account numbers and personal identity codes are hidden from the AI. Fixed rules in the code block actions outside policy, such as a large credit or a change to another customer's order, even if an email tries to talk the AI into them. A set of sample emails checks how often it gets the answer right.
 
-The company and all data are made up. The rest of this page is the technical detail.
+It is a demo: the company and all data are made up, and it has no login or database. The rest of this page is the technical detail.
 
 ## How it works
 
@@ -116,7 +116,7 @@ tests/            offline tests with a scripted model
 
 - One ticket at a time, in memory; no database or authentication.
 - The policy rules and runbooks are examples, not a real company's.
-- Small local models may follow the tool protocol less reliably than Claude. The evals can measure the difference; see Results for the runs so far.
+- Small local models may be less reliable than Claude. The evals measure the difference; see Results.
 
 ## License
 
