@@ -1,5 +1,17 @@
 # Support triage agent
 
+## In plain terms
+
+A packaging company's customer service gets emails like *"Your invoice charges 2.35 EUR per box but we were quoted 2.05."* Answering one means looking up the order, the price list and the delivery history, then deciding what to do.
+
+This project is an AI assistant that does that legwork. It reads the email, checks the company's records and the internal instructions, and suggests what happened, what to do and how to reply. **A person always makes the decision**: the assistant can look things up but cannot change anything itself.
+
+It is built to be safe to use with real customers. Names, emails and phone numbers are hidden from the AI. A customer can't trick it with instructions written into the email. Automated tests check it gets the right answer.
+
+The company and all data are made up. The rest of this page is the technical detail.
+
+## How it works
+
 An LLM agent that investigates customer support tickets for a (fictional) packaging manufacturer and proposes what to do. A person reviews and approves every action.
 
 It reads a ticket, looks up the order, shipment, stock and price list in a mock ERP through an **MCP server**, retrieves the matching **runbook**, and submits a **structured proposal**: likely cause, evidence, actions and a draft reply. **Personal data is pseudonymised** before the model sees it. **Policy runs in code**, so a prompt injection in a ticket can't talk the agent into an action. The same loop runs on **Claude** or a **local model through Ollama**.
@@ -104,7 +116,7 @@ tests/            offline tests with a scripted model
 
 - One ticket at a time, in memory; no database or authentication.
 - The policy rules and runbooks are examples, not a real company's.
-- Small local models follow the tool protocol less reliably than Claude; the evals show by how much.
+- Small local models may follow the tool protocol less reliably than Claude. The evals can measure the difference; see Results for the runs so far.
 
 ## License
 
