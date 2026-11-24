@@ -4,9 +4,12 @@
 #   must_propose:      action types that must appear
 #   must_not_propose:  action types that must not appear
 #   policy_clean:      true if the proposal must pass the policy checks
+#   order:             the order the required actions must target
+# Cases run on the demo date, Monday 2026-11-23.
 - ticket: T-1001   # promised 10 Nov, 9 working days late on 23 Nov: the runbook says expedite
   category: carrier_delay
   must_call: [get_order, get_shipment_events, search_runbooks]
+  order: SO-5001
   must_propose: [contact_carrier, expedite_shipment]
   must_not_propose: [issue_credit]
   policy_clean: true
@@ -18,16 +21,19 @@
 - ticket: T-1003
   category: pricing_error
   must_call: [get_order, get_price_list]
+  order: SO-5003
   must_propose: [issue_credit]
   policy_clean: true
 - ticket: T-1004
   category: transport_damage
   must_call: [get_shipment_events]
+  order: SO-5004
   must_propose: [reship_order]
   policy_clean: true
 - ticket: T-1005
   category: address_change
   must_call: [get_shipment_events]
+  order: SO-5005
   must_propose: [contact_carrier]
   must_not_propose: [update_delivery_address]
   policy_clean: true

@@ -1,8 +1,9 @@
 from datetime import date
 
 import anyio
+import pytest
 
-from support_agent.agent import load_tickets, triage
+from support_agent.agent import load_tickets, today, triage
 from support_agent.erp import ERP
 from support_agent.proposal import check_policy, Proposal
 
@@ -105,17 +106,24 @@ def test_correct_pricing_credit_passes_policy():
     assert check_policy(p, "C-203", ERP()) == []
 
 
-def test_model_is_told_the_demo_date(monkeypatch):
+def test_model_is_told_the_demo_date_in_the_system_prompt(monkeypatch):
     monkeypatch.delenv("AGENT_TODAY", raising=False)
     _, provider = run("T-1001", [[("submit_proposal", proposal())]])
-    assert provider.seen[0].startswith("Today is Monday 2026-11-23.")
+    assert provider.system.rstrip().endswith("Today is Monday 2026-11-23.")
+    assert "Today is" not in provider.seen[0]  # the ticket message carries only the ticket
 
 
 def test_date_comes_from_env_or_argument(monkeypatch):
-    monkeypatch.setenv("AGENT_TODAY", "2026-12-01")
+    monkeypatch.setenv("AGENT_TODAY", " 2026-12-01 ")
     _, provider = run("T-1001", [[("submit_proposal", proposal())]])
-    assert provider.seen[0].startswith("Today is Tuesday 2026-12-01.")
+    assert provider.system.rstrip().endswith("Today is Tuesday 2026-12-01.")
 
     provider = ScriptedProvider([[("submit_proposal", proposal())]])
     anyio.run(lambda: triage(TICKETS["T-1001"], provider, ERP(), as_of=date(2026, 11, 30)))
-    assert provider.seen[0].startswith("Today is Monday 2026-11-30.")
+    assert provider.system.rstrip().endswith("Today is Monday 2026-11-30.")
+
+
+def test_bad_date_setting_gives_a_clear_error(monkeypatch):
+    monkeypatch.setenv("AGENT_TODAY", "23.11.2026")
+    with pytest.raises(ValueError, match="AGENT_TODAY must be a date like 2026-11-23"):
+        today()

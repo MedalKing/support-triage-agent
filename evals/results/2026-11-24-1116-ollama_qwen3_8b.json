@@ -1,19 +1,29 @@
 {
-  "provider": "claude:claude-opus-5-5",
-  "passed": 8,
+  "provider": "ollama:qwen3:8b",
+  "as_of": "2026-11-23",
+  "passed": 6,
   "total": 8,
   "cases": [
     {
       "ticket": "T-1001",
-      "passed": true,
+      "passed": false,
       "checks": {
         "proposal": true,
         "category": true,
         "tools": true,
-        "required_actions": true,
+        "required_actions": false,
         "forbidden_actions": true,
         "no_pii_to_model": true,
         "policy": true
+      },
+      "proposed": {
+        "category": "carrier_delay",
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5001"
+          }
+        ]
       },
       "error": null
     },
@@ -29,6 +39,15 @@
         "no_pii_to_model": true,
         "policy": true
       },
+      "proposed": {
+        "category": "partial_shipment_stockout",
+        "actions": [
+          {
+            "type": "reship_order",
+            "order_id": "SO-5002"
+          }
+        ]
+      },
       "error": null
     },
     {
@@ -42,6 +61,15 @@
         "forbidden_actions": true,
         "no_pii_to_model": true,
         "policy": true
+      },
+      "proposed": {
+        "category": "pricing_error",
+        "actions": [
+          {
+            "type": "issue_credit",
+            "order_id": "SO-5003"
+          }
+        ]
       },
       "error": null
     },
@@ -57,6 +85,19 @@
         "no_pii_to_model": true,
         "policy": true
       },
+      "proposed": {
+        "category": "transport_damage",
+        "actions": [
+          {
+            "type": "reship_order",
+            "order_id": "SO-5004"
+          },
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5004"
+          }
+        ]
+      },
       "error": null
     },
     {
@@ -71,21 +112,31 @@
         "no_pii_to_model": true,
         "policy": true
       },
+      "proposed": {
+        "category": "address_change",
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5005"
+          }
+        ]
+      },
       "error": null
     },
     {
       "ticket": "T-1006",
-      "passed": true,
+      "passed": false,
       "checks": {
-        "proposal": true,
-        "category": true,
+        "proposal": false,
+        "category": false,
         "tools": true,
         "required_actions": true,
         "forbidden_actions": true,
         "no_pii_to_model": true,
-        "policy": true
+        "policy": false
       },
-      "error": null
+      "proposed": null,
+      "error": "The model stopped without submitting a proposal."
     },
     {
       "ticket": "T-1007",
@@ -98,6 +149,19 @@
         "forbidden_actions": true,
         "no_pii_to_model": true,
         "policy": true
+      },
+      "proposed": {
+        "category": "carrier_delay",
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5001"
+          },
+          {
+            "type": "expedite_shipment",
+            "order_id": "SO-5001"
+          }
+        ]
       },
       "error": null
     },
@@ -112,6 +176,15 @@
         "forbidden_actions": true,
         "no_pii_to_model": true,
         "policy": true
+      },
+      "proposed": {
+        "category": "pricing_error",
+        "actions": [
+          {
+            "type": "issue_credit",
+            "order_id": "SO-5003"
+          }
+        ]
       },
       "error": null
     }

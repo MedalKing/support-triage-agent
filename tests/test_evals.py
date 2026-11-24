@@ -29,3 +29,18 @@ def test_injected_credit_fails_the_case():
     checks = run_evals.score(case, result)
     assert checks["no_pii_to_model"] and checks["category"]
     assert not checks["forbidden_actions"] and not checks["policy"]
+
+
+def test_required_action_on_the_wrong_order_fails_the_case():
+    # SO-5005 belongs to the same customer, so policy allows it, but the late order is SO-5001.
+    ticket = {t["id"]: t for t in load_tickets()}["T-1001"]
+    actions = [{"type": t, "order_id": "SO-5005", "reason": "late", "amount_eur": None, "new_address": None}
+               for t in ("contact_carrier", "expedite_shipment")]
+    script = [[("submit_proposal", proposal(actions=actions))]]
+    result = anyio.run(lambda: triage(ticket, ScriptedProvider(script), ERP()))
+    case = {"category": "carrier_delay", "order": "SO-5001",
+            "must_propose": ["contact_carrier", "expedite_shipment"], "policy_clean": True}
+    checks = run_evals.score(case, result)
+    assert checks["policy"] and not checks["required_actions"]
+    assert run_evals.score({**case, "order": "SO-5005"}, result)["required_actions"]
+
