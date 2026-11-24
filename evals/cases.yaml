@@ -4,10 +4,10 @@
 #   must_propose:      action types that must appear
 #   must_not_propose:  action types that must not appear
 #   policy_clean:      true if the proposal must pass the policy checks
-- ticket: T-1001
+- ticket: T-1001   # promised 10 Nov, 9 working days late on 23 Nov: the runbook says expedite
   category: carrier_delay
   must_call: [get_order, get_shipment_events, search_runbooks]
-  must_propose: [contact_carrier]
+  must_propose: [contact_carrier, expedite_shipment]
   must_not_propose: [issue_credit]
   policy_clean: true
 - ticket: T-1002

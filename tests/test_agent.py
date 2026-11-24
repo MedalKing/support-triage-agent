@@ -1,3 +1,5 @@
+from datetime import date
+
 import anyio
 
 from support_agent.agent import load_tickets, triage
@@ -101,3 +103,19 @@ def test_correct_pricing_credit_passes_policy():
         {"type": "issue_credit", "order_id": "SO-5003", "reason": "expired price list",
          "amount_eur": 60.0, "new_address": None}]))
     assert check_policy(p, "C-203", ERP()) == []
+
+
+def test_model_is_told_the_demo_date(monkeypatch):
+    monkeypatch.delenv("AGENT_TODAY", raising=False)
+    _, provider = run("T-1001", [[("submit_proposal", proposal())]])
+    assert provider.seen[0].startswith("Today is Monday 2026-11-23.")
+
+
+def test_date_comes_from_env_or_argument(monkeypatch):
+    monkeypatch.setenv("AGENT_TODAY", "2026-12-01")
+    _, provider = run("T-1001", [[("submit_proposal", proposal())]])
+    assert provider.seen[0].startswith("Today is Tuesday 2026-12-01.")
+
+    provider = ScriptedProvider([[("submit_proposal", proposal())]])
+    anyio.run(lambda: triage(TICKETS["T-1001"], provider, ERP(), as_of=date(2026, 11, 30)))
+    assert provider.seen[0].startswith("Today is Monday 2026-11-30.")

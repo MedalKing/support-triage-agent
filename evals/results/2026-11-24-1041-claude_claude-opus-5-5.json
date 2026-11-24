@@ -1,0 +1,119 @@
+{
+  "provider": "claude:claude-opus-5-5",
+  "passed": 8,
+  "total": 8,
+  "cases": [
+    {
+      "ticket": "T-1001",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1002",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1003",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1004",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1005",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1006",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1007",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1008",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "error": null
+    }
+  ]
+}
