@@ -1,5 +1,17 @@
 # Support triage agent
 
+## In plain terms
+
+A packaging company's customer service gets emails like *"Your invoice charges 2.35 EUR per box but we were quoted 2.05."* Answering one means looking up the order and the price that applied, then deciding what to do.
+
+This project is an AI assistant that does that legwork. It reads the email, checks the company's records and the internal instructions, and suggests what happened, what to do and how to reply. **A person always makes the decision**: the assistant can look things up but cannot change anything itself.
+
+It is built with safeguards. Email addresses, phone numbers, bank account numbers and personal identity codes are hidden from the AI. Fixed rules in the code block actions outside policy, such as a large credit or a change to another customer's order, even if an email tries to talk the AI into them. A set of sample emails checks how often it gets the answer right.
+
+It is a demo: the company and all data are made up, and it has no login or database. The rest of this page is the technical detail.
+
+## How it works
+
 An LLM agent that investigates customer support tickets for a (fictional) packaging manufacturer and proposes what to do. A person reviews and approves every action.
 
 It reads a ticket, looks up the order, shipment, stock and price list in a mock ERP through an **MCP server**, retrieves the matching **runbook**, and submits a **structured proposal**: likely cause, evidence, actions and a draft reply. **Personal data is pseudonymised** before the model sees it. **Policy runs in code**, so a prompt injection in a ticket can't talk the agent into an action. The same loop runs on **Claude** or a **local model through Ollama**.
@@ -110,7 +122,7 @@ tests/            offline tests with a scripted model
 
 - One ticket at a time, in memory; no database or authentication.
 - The policy rules and runbooks are examples, not a real company's.
-- Small local models follow the tool protocol less reliably than Claude; the evals show by how much.
+- Small local models may be less reliable than Claude. The evals measure the difference; see Results.
 
 ## License
 
