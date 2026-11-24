@@ -50,10 +50,18 @@ def score(case: dict, result) -> dict[str, bool]:
     }
     if case.get("policy_clean"):
         checks["policy"] = bool(p) and not result.policy_violations
-    if "credit_eur" in case:  # total credit on the case's order, to the cent
-        credit = sum(a.amount_eur or 0 for a in p.actions
-                     if a.type == "issue_credit" and a.order_id == case.get("order")) if p else 0
-        checks["credit_amount"] = abs(credit - case["credit_eur"]) < 0.01
+    if "order" in case and "get_order" in case.get("must_call", []):
+        # The lookup has to be of the right order, not just any order.
+        looked_up = {s.detail["arguments"].get("order_id") for s in result.trace
+                     if s.kind == "tool" and s.name == "get_order" and s.detail.get("ok", True)}
+        checks["looked_up_order"] = case["order"] in looked_up
+    if "allowed_actions" in case:  # nothing beyond what the runbook allows for this case
+        checks["only_allowed_actions"] = bool(p) and actions <= set(case["allowed_actions"])
+    if "credit_eur" in case:  # every credit on the case's order, and the total exact to the cent
+        credits = [a for a in p.actions if a.type == "issue_credit"] if p else []
+        total = round(sum(a.amount_eur or 0 for a in credits) * 100)
+        checks["credit_amount"] = (bool(credits) and all(a.order_id == case.get("order") for a in credits)
+                                   and total == round(case["credit_eur"] * 100))
     return checks
 
 

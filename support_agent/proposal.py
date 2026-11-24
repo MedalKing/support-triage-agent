@@ -10,7 +10,7 @@ import math
 from collections import defaultdict
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Category = Literal[
     "carrier_delay", "partial_shipment_stockout", "pricing_error", "transport_damage",
@@ -42,6 +42,13 @@ class Proposal(BaseModel):
     actions: list[Action]
     customer_reply: str
     confidence: Literal["low", "medium", "high"]
+
+    @field_validator("evidence")
+    @classmethod
+    def _evidence_not_blank(cls, value: list[str]) -> list[str]:
+        if any(not item.strip() for item in value):
+            raise ValueError("evidence items must not be blank")
+        return value
 
 
 def _nullable(kind: str) -> dict[str, Any]:
@@ -87,8 +94,31 @@ SUBMIT_PROPOSAL_TOOL = {
 }
 
 
-def check_policy(proposal: Proposal, ticket_customer_id: str, erp: Any) -> list[str]:
-    """Return policy violations. Violating actions are blocked in the UI and at the approval API."""
+# Which action types an amount or an address belongs to. A carrier redirect carries the new address.
+TAKES_AMOUNT = {"issue_credit"}
+TAKES_ADDRESS = {"update_delivery_address", "contact_carrier"}
+
+
+def drop_stray_fields(proposal: Proposal) -> list[str]:
+    """Remove amounts and addresses on actions they don't belong to, so they can't reach the
+    audit log. Returns a note for each one removed."""
+    notes = []
+    for i, action in enumerate(proposal.actions):
+        if action.amount_eur is not None and action.type not in TAKES_AMOUNT:
+            notes.append(f"action {i} ({action.type}): dropped amount {action.amount_eur!r}")
+            action.amount_eur = None
+        if action.new_address is not None and action.type not in TAKES_ADDRESS:
+            notes.append(f"action {i} ({action.type}): dropped address")
+            action.new_address = None
+    return notes
+
+
+def check_policy(proposal: Proposal, ticket_customer_id: str, erp: Any, proposal_id: str | None = None) -> list[str]:
+    """Return policy violations. Violating actions are blocked in the UI and at the approval API.
+
+    The credit cap counts credits already approved on the order by other proposals, so two
+    tickets about the same invoice can't add up past it.
+    """
     problems = []
     credits: dict[str, float] = defaultdict(float)
     for action in proposal.actions:
@@ -121,11 +151,14 @@ def check_policy(proposal: Proposal, ticket_customer_id: str, erp: Any) -> list[
                 if not stock or stock["on_hand"] <= 0:
                     problems.append(f"reship_order: {line['sku']} is out of stock; the remainder is a backorder")
     # The cap is per order, so splitting a credit into several actions doesn't get around it.
-    for order_id, total_credit in credits.items():
+    for order_id, proposed in credits.items():
         invoice = erp.get_order(order_id)["invoice_total_eur"]
-        if total_credit > MAX_AGENT_CREDIT_SHARE * invoice:
+        earlier = erp.approved_credit_eur(order_id, except_proposal=proposal_id)
+        # Compare in whole cents so float rounding can't nudge an amount past the cap.
+        if round((earlier + proposed) * 100) > round(MAX_AGENT_CREDIT_SHARE * invoice * 100):
+            already = f" ({earlier:.2f} EUR already approved)" if earlier else ""
             problems.append(
-                f"issue_credit: {total_credit:.2f} EUR on {order_id} exceeds {MAX_AGENT_CREDIT_SHARE:.0%} "
-                f"of the invoice ({invoice:.2f} EUR); needs a manager"
+                f"issue_credit: {earlier + proposed:.2f} EUR on {order_id}{already} exceeds "
+                f"{MAX_AGENT_CREDIT_SHARE:.0%} of the invoice ({invoice:.2f} EUR); needs a manager"
             )
     return problems

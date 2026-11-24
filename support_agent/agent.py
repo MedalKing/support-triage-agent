@@ -21,7 +21,7 @@ from pydantic import ValidationError
 
 from .erp import ERP
 from .erp_server import build_server
-from .proposal import NEEDS_APPROVAL, SUBMIT_PROPOSAL_TOOL, Proposal, check_policy
+from .proposal import NEEDS_APPROVAL, SUBMIT_PROPOSAL_TOOL, Proposal, check_policy, drop_stray_fields
 from .providers import Provider, ToolCall, ToolResult, ToolSpec
 from .redact import Redactor
 
@@ -123,7 +123,7 @@ async def connect_erp(erp: ERP, transport: Literal["inprocess", "stdio"] = "inpr
     subprocess loads its own copy of the sample data, so the CLI doesn't share `erp`.
     """
     if transport == "stdio":
-        args = ["-m", "support_agent.erp_server"] + (["--customer", customer_id] if customer_id else [])
+        args = ["-m", "support_agent.erp_server"] + (["--customer", customer_id] if customer_id is not None else [])
         target = StdioServerParameters(command=sys.executable, args=args)
     else:
         target = build_server(erp, customer_id)
@@ -222,10 +222,12 @@ async def _triage(
 
 
 def _is_error_payload(text: str) -> bool:
+    """An error, or an empty result: neither is data the proposal can rest on."""
     try:
-        return isinstance(value := json.loads(text), dict) and "error" in value
+        value = json.loads(text)
     except ValueError:
         return False
+    return (isinstance(value, dict) and "error" in value) or value in ([], {}, None)
 
 
 ERP_LOOKUPS = {"get_order", "list_customer_orders", "get_shipment_events", "get_stock", "get_price_list"}
@@ -241,6 +243,8 @@ def _accept_proposal(call: ToolCall, result: TriageResult, ticket: dict[str, Any
     except ValidationError as e:
         result.trace.append(TraceStep("note", "invalid_proposal", str(e)))
         return ToolResult(call, f"Invalid proposal, fix and resubmit: {e}", is_error=True)
+    for note in drop_stray_fields(proposal):
+        result.trace.append(TraceStep("note", "dropped_field", note))
     result.proposal = proposal
     result.policy_violations = check_policy(proposal, ticket["customer_id"], erp)
     result.trace.append(TraceStep("tool", "submit_proposal", call.arguments))

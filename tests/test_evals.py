@@ -44,3 +44,37 @@ def test_required_action_on_the_wrong_order_fails_the_case():
     assert checks["policy"] and not checks["required_actions"]
     assert run_evals.score({**case, "order": "SO-5005"}, result)["required_actions"]
 
+
+def _scored(ticket_id, script, case):
+    ticket = {t["id"]: t for t in load_tickets()}[ticket_id]
+    result = anyio.run(lambda: triage(ticket, ScriptedProvider(script), ERP()))
+    return run_evals.score(case, result)
+
+
+PRICING = {"category": "pricing_error", "must_call": ["get_order"], "order": "SO-5003",
+           "must_propose": ["issue_credit"], "allowed_actions": ["issue_credit"], "credit_eur": 60.0}
+
+
+def _credit(amount, order="SO-5003", type_="issue_credit"):
+    return {"type": type_, "order_id": order, "reason": "x", "amount_eur": amount, "new_address": None}
+
+
+def test_credit_must_be_exact_to_the_cent():
+    for amount, ok in ((60.0, True), (59.99, False), (60.01, False)):
+        script = [[("get_order", {"order_id": "SO-5003"})],
+                  [("submit_proposal", proposal(category="pricing_error", actions=[_credit(amount)]))]]
+        assert _scored("T-1003", script, PRICING)["credit_amount"] is ok
+
+
+def test_lookup_of_the_wrong_order_fails():
+    script = [[("get_order", {"order_id": "SO-5006"})],  # same customer, other order
+              [("submit_proposal", proposal(category="pricing_error", actions=[_credit(60.0)]))]]
+    assert not _scored("T-1003", script, PRICING)["looked_up_order"]
+
+
+def test_extra_actions_fail_the_case():
+    script = [[("get_order", {"order_id": "SO-5003"})],
+              [("submit_proposal", proposal(category="pricing_error",
+                                            actions=[_credit(60.0), _credit(None, type_="expedite_shipment")]))]]
+    assert not _scored("T-1003", script, PRICING)["only_allowed_actions"]
+

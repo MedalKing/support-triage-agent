@@ -56,6 +56,12 @@ class ERP:
         pl = self._data["price_lists"].get(price_list_id)
         return None if pl is None else {"price_list_id": price_list_id, **pl}
 
+    def approved_credit_eur(self, order_id: str, except_proposal: str | None = None) -> float:
+        """Credits already approved on an order, from the audit log."""
+        return sum(e["amount_eur"] for e in self.audit_log
+                   if e["type"] == "issue_credit" and e["order_id"] == order_id
+                   and e.get("proposal_id") != except_proposal)
+
     # --- write side (only after human approval) ---
 
     def apply_action(self, action: dict[str, Any], approved_by: str) -> dict[str, Any]:
@@ -65,6 +71,8 @@ class ERP:
             **action,
         }
         self.audit_log.append(entry)
+        # A mock: only address changes update the order. Credits, reships and carrier contacts
+        # are recorded in the audit log, which is where a real ERP integration would take over.
         if action["type"] == "update_delivery_address" and action.get("new_address"):
             self._data["orders"][action["order_id"]]["delivery_address"] = action["new_address"]
         return entry

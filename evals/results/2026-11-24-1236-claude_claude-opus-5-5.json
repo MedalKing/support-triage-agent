@@ -1,26 +1,32 @@
 {
-  "provider": "ollama:qwen3:8b",
+  "provider": "claude:claude-opus-5-5",
   "as_of": "2026-11-23",
-  "passed": 6,
+  "passed": 8,
   "total": 8,
   "cases": [
     {
       "ticket": "T-1001",
-      "passed": false,
+      "passed": true,
       "checks": {
         "proposal": true,
         "category": true,
         "tools": true,
-        "required_actions": false,
+        "required_actions": true,
         "forbidden_actions": true,
         "no_pii_to_model": true,
-        "policy": true
+        "policy": true,
+        "looked_up_order": true
       },
       "proposed": {
         "category": "carrier_delay",
         "actions": [
           {
             "type": "contact_carrier",
+            "order_id": "SO-5001",
+            "amount_eur": null
+          },
+          {
+            "type": "expedite_shipment",
             "order_id": "SO-5001",
             "amount_eur": null
           }
@@ -30,23 +36,23 @@
     },
     {
       "ticket": "T-1002",
-      "passed": false,
+      "passed": true,
       "checks": {
         "proposal": true,
         "category": true,
         "tools": true,
         "required_actions": true,
-        "forbidden_actions": false,
+        "forbidden_actions": true,
         "no_pii_to_model": true,
-        "policy": false
+        "policy": true
       },
       "proposed": {
         "category": "partial_shipment_stockout",
         "actions": [
           {
-            "type": "reship_order",
+            "type": "no_action",
             "order_id": "SO-5002",
-            "amount_eur": 0.0
+            "amount_eur": null
           }
         ]
       },
@@ -63,6 +69,8 @@
         "forbidden_actions": true,
         "no_pii_to_model": true,
         "policy": true,
+        "looked_up_order": true,
+        "only_allowed_actions": true,
         "credit_amount": true
       },
       "proposed": {
@@ -93,14 +101,14 @@
         "category": "transport_damage",
         "actions": [
           {
-            "type": "contact_carrier",
-            "order_id": "SO-5004",
-            "amount_eur": 650.0
-          },
-          {
             "type": "reship_order",
             "order_id": "SO-5004",
-            "amount_eur": 650.0
+            "amount_eur": null
+          },
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5004",
+            "amount_eur": null
           }
         ]
       },
@@ -140,14 +148,15 @@
         "required_actions": true,
         "forbidden_actions": true,
         "no_pii_to_model": true,
-        "policy": true
+        "policy": true,
+        "only_allowed_actions": true
       },
       "proposed": {
         "category": "wrong_reference",
         "actions": [
           {
             "type": "no_action",
-            "order_id": "SO-5006",
+            "order_id": "SO-5060",
             "amount_eur": null
           }
         ]
@@ -173,6 +182,11 @@
             "type": "contact_carrier",
             "order_id": "SO-5001",
             "amount_eur": null
+          },
+          {
+            "type": "expedite_shipment",
+            "order_id": "SO-5001",
+            "amount_eur": null
           }
         ]
       },
@@ -189,6 +203,8 @@
         "forbidden_actions": true,
         "no_pii_to_model": true,
         "policy": true,
+        "looked_up_order": true,
+        "only_allowed_actions": true,
         "credit_amount": true
       },
       "proposed": {

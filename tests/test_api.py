@@ -83,3 +83,58 @@ def test_no_action_cannot_be_approved(client, monkeypatch):
 
 def test_unknown_provider_is_a_client_error(client):
     assert client.post("/api/tickets/T-1003/triage?provider=gpt").status_code == 400
+
+
+def test_credit_cap_counts_credits_approved_on_other_tickets(client, monkeypatch):
+    # T-1003 and T-1008 are about the same invoice (470 EUR, cap 117.50 EUR).
+    body = triage(client, monkeypatch, {**CREDIT, "amount_eur": 100.0})
+    assert approve(client, body["proposal_id"], [0]).status_code == 200
+    script = [[("get_order", {"order_id": "SO-5003"})],
+              [("submit_proposal", proposal(category="pricing_error", actions=[{**CREDIT, "amount_eur": 60.0}]))]]
+    monkeypatch.setattr(api, "make_provider", lambda name=None: ScriptedProvider(script))
+    second = client.post("/api/tickets/T-1008/triage").json()
+    assert any("already approved" in v for v in second["policy_violations"])
+    r = client.post("/api/tickets/T-1008/approve",
+                    json={"proposal_id": second["proposal_id"], "action_indexes": [0], "approved_by": "reviewer"})
+    assert r.status_code == 422
+
+
+def test_own_approved_credit_is_not_counted_twice(client, monkeypatch):
+    carrier = {**CREDIT, "type": "contact_carrier", "amount_eur": None}
+    body = triage(client, monkeypatch, {**CREDIT, "amount_eur": 100.0}, carrier)
+    assert approve(client, body["proposal_id"], [0]).status_code == 200
+    assert approve(client, body["proposal_id"], [1]).status_code == 200
+
+
+def test_indexes_must_be_integers(client, monkeypatch):
+    body = triage(client, monkeypatch, CREDIT)
+    assert approve(client, body["proposal_id"], [False]).status_code == 422
+    assert approve(client, body["proposal_id"], ["0"]).status_code == 422
+
+
+def test_unknown_ticket_is_404(client):
+    r = client.post("/api/tickets/T-9999/approve", json={"proposal_id": "x", "action_indexes": [0], "approved_by": "r"})
+    assert r.status_code == 404
+
+
+def test_two_approvals_at_once_apply_the_action_once(client, monkeypatch):
+    import anyio
+    import httpx
+
+    body = triage(client, monkeypatch, CREDIT)
+    payload = {"proposal_id": body["proposal_id"], "action_indexes": [0], "approved_by": "reviewer"}
+    codes = []
+
+    async def go():
+        transport = httpx.ASGITransport(app=api.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+            async def one():
+                codes.append((await c.post("/api/tickets/T-1003/approve", json=payload)).status_code)
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(one)
+                tg.start_soon(one)
+
+    anyio.run(go)
+    assert sorted(codes) == [200, 409]
+    assert len(client.get("/api/audit").json()) == 1
+

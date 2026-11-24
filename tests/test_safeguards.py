@@ -10,7 +10,7 @@ from mcp import Client
 from support_agent.agent import load_tickets, triage
 from support_agent.erp import ERP
 from support_agent.erp_server import build_server
-from support_agent.proposal import Proposal, check_policy
+from support_agent.proposal import Proposal, check_policy, drop_stray_fields
 from support_agent.redact import Redactor
 from scripted import ScriptedProvider
 from test_agent import proposal
@@ -147,4 +147,46 @@ def test_model_errors_surface_as_provider_errors():
 
     with pytest.raises(ProviderError):
         anyio.run(lambda: triage(TICKETS["T-1001"], Down([]), ERP()))
+
+
+def test_amount_or_address_on_the_wrong_action_is_dropped_before_approval():
+    p = Proposal.model_validate(proposal(actions=[
+        action("contact_carrier", "SO-5001", amount=math.inf, new_address="Satamatie 2, Kemi"),  # a redirect
+        action("reship_order", "SO-5004", amount=650.0, new_address="Somewhere 1"),
+    ]))
+    notes = drop_stray_fields(p)
+    assert len(notes) == 3
+    assert p.actions[0].amount_eur is None and p.actions[0].new_address == "Satamatie 2, Kemi"
+    assert p.actions[1].amount_eur is None and p.actions[1].new_address is None
+
+
+def test_blank_evidence_is_refused():
+    with pytest.raises(ValueError):
+        Proposal.model_validate(proposal(evidence=["   "]))
+
+
+def test_empty_lookup_result_is_not_data():
+    provider = ScriptedProvider([
+        [("list_customer_orders", {"customer_id": "C-999"})],  # refused: not the ticket's customer
+        [("submit_proposal", proposal())],
+    ])
+    result = anyio.run(lambda: triage(TICKETS["T-1001"], provider, ERP()))
+    assert result.proposal is None
+
+
+@pytest.mark.parametrize("phone", ["040-123-4567", "+358-40-123-4567", "+358 40-123-4567", "(09) 123 4567"])
+def test_dashed_and_bracketed_phone_numbers_are_masked(phone):
+    assert Redactor().redact(f"call {phone} today") == "call [PHONE_1] today"
+
+
+def test_malformed_ollama_responses_are_provider_errors():
+    import httpx
+    from support_agent.providers import OllamaProvider, ProviderError
+
+    for body in ({"message": None}, {"message": {"tool_calls": [{"nope": 1}]}}, {"other": 1}):
+        http = httpx.Client(transport=httpx.MockTransport(lambda request, body=body: httpx.Response(200, json=body)))
+        provider = OllamaProvider(http=http)
+        provider.start("system", "user", [])
+        with pytest.raises(ProviderError):
+            provider.step()
 

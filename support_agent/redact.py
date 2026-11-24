@@ -15,11 +15,13 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("EMAIL", re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")),
     ("IBAN", re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b", re.IGNORECASE)),
     ("HETU", re.compile(r"\b\d{6}[-+A-FU-Y]\d{3}[0-9A-Y]\b", re.IGNORECASE)),
-    # Digit groups separated by spaces, e.g. +358 40 123 4567, +358 40 1234 567, 0442223333.
-    # A dash only right after the area code, so dates like 2026-11-23 are left alone.
-    ("PHONE", re.compile(r"(?<![\w-])(?:\+\d{1,3}[ ]?)?\(?0?\d{1,3}\)?[ -]?\d{2,4}(?:[ ]?\d{2,4}){1,3}(?![\w-])")),
+    # Digit groups separated by spaces or dashes: +358 40 123 4567, +358-40-123-4567,
+    # 040-123-4567, (09) 123 4567, 0442223333. Dates are excluded in Redactor._replace.
+    ("PHONE", re.compile(r"(?<![\w-])(?:\+\d{1,3}[ -]?)?(?:\(0?\d{1,3}\)|0?\d{1,3})(?:[ -]?\d{2,4}){2,4}(?![\w-])")),
 ]
 MIN_PHONE_DIGITS = 7  # shorter digit runs are quantities or ids, not phone numbers
+ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+MIN_IBAN_DIGITS = 10  # a real IBAN has many digits; this keeps words like "ab12 this case" out
 # Only contact details go back into the draft reply. Bank accounts and identity codes never do.
 RESTORABLE = {"EMAIL", "PHONE"}
 
@@ -37,7 +39,10 @@ class Redactor:
         return text
 
     def _replace(self, kind: str, value: str) -> str:
-        if kind == "PHONE" and sum(c.isdigit() for c in value) < MIN_PHONE_DIGITS:
+        digits = sum(c.isdigit() for c in value)
+        if kind == "PHONE" and (digits < MIN_PHONE_DIGITS or ISO_DATE.fullmatch(value)):
+            return value
+        if kind == "IBAN" and digits < MIN_IBAN_DIGITS:
             return value
         return self._placeholder(kind, value)
 

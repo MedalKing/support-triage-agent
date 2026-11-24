@@ -44,14 +44,19 @@ export default function App() {
 
   async function submit() {
     if (!selected || !result) return;
+    const ticketId = selected.id;
     setBusy(true);
     try {
-      const r = await approve(selected.id, result.proposal_id, checked);
+      const r = await approve(ticketId, result.proposal_id, checked);
+      if (current.current !== ticketId) return;
       setResult({ ...result, applied: [...result.applied, ...checked] });
       setChecked([]);
-      setMessage(`Applied ${r.applied.length} action(s). See /api/audit for the log.`);
+      setMessage(
+        `Approved ${r.applied.length} action(s), recorded in the audit log (/api/audit). ` +
+          "This demo only simulates the ERP: address changes update the mock order, other actions are logged.",
+      );
     } catch (e) {
-      setMessage(String(e));
+      if (current.current === ticketId) setMessage(String(e));
     } finally {
       setBusy(false);
     }
@@ -145,7 +150,8 @@ export default function App() {
                 <pre className="reply">{result.proposal.customer_reply}</pre>
                 {result.redactions.length > 0 && (
                   <p className="muted">
-                    Hidden from the model: {result.redactions.join(", ")}. Restored here for you only.
+                    Hidden from the model: {result.redactions.join(", ")}. Contact details are restored here for
+                    you; bank accounts and identity codes stay masked.
                   </p>
                 )}
               </section>
