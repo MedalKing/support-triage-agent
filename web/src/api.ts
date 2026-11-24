@@ -18,6 +18,8 @@ export type Proposal = {
 export type TraceStep = { kind: "model" | "tool" | "note"; name: string; detail: unknown };
 export type TriageResult = {
   ticket_id: string;
+  proposal_id: string;
+  applied: number[];
   provider: string;
   proposal: Proposal | null;
   policy_violations: string[];
@@ -35,8 +37,8 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 export const listTickets = () => call<Ticket[]>("/api/tickets");
 export const triage = (id: string, provider: string) =>
   call<TriageResult>(`/api/tickets/${id}/triage?provider=${provider}`, { method: "POST" });
-export const approve = (id: string, action_indexes: number[]) =>
+export const approve = (id: string, proposal_id: string, action_indexes: number[]) =>
   call<{ applied: unknown[] }>(`/api/tickets/${id}/approve`, {
     method: "POST",
-    body: JSON.stringify({ action_indexes, approved_by: "demo reviewer" }),
+    body: JSON.stringify({ proposal_id, action_indexes, approved_by: "demo reviewer" }),
   });

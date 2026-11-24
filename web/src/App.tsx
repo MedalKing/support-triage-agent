@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { approve, listTickets, triage, Ticket, TriageResult } from "./api";
 
 export default function App() {
@@ -9,12 +9,15 @@ export default function App() {
   const [checked, setChecked] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // The ticket on screen. A triage answer for a ticket the reviewer has left is dropped.
+  const current = useRef<string | null>(null);
 
   useEffect(() => {
     listTickets().then(setTickets).catch((e) => setMessage(String(e)));
   }, []);
 
   function pick(t: Ticket) {
+    current.current = t.id;
     setSelected(t);
     setResult(null);
     setChecked([]);
@@ -25,24 +28,32 @@ export default function App() {
     if (!selected) return;
     setBusy(true);
     setMessage(null);
+    const ticketId = selected.id;
     try {
-      const r = await triage(selected.id, provider);
+      const r = await triage(ticketId, provider);
+      if (current.current !== ticketId) return;
       setResult(r);
-      setChecked(r.proposal?.actions.flatMap((a, i) => (a.needs_approval ? [] : [i])) ?? []);
+      // Pre-tick only actions that change nothing for the customer; never no_action.
+      setChecked(r.proposal?.actions.flatMap((a, i) => (a.needs_approval || a.type === "no_action" ? [] : [i])) ?? []);
     } catch (e) {
-      setMessage(String(e));
+      if (current.current === ticketId) setMessage(String(e));
     } finally {
       setBusy(false);
     }
   }
 
   async function submit() {
-    if (!selected) return;
+    if (!selected || !result) return;
+    setBusy(true);
     try {
-      const r = await approve(selected.id, checked);
+      const r = await approve(selected.id, result.proposal_id, checked);
+      setResult({ ...result, applied: [...result.applied, ...checked] });
+      setChecked([]);
       setMessage(`Applied ${r.applied.length} action(s). See /api/audit for the log.`);
     } catch (e) {
       setMessage(String(e));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -110,20 +121,23 @@ export default function App() {
                 )}
                 {result.proposal.actions.map((a, i) => (
                   <label key={i} className="action">
-                    <input
-                      type="checkbox"
-                      disabled={blocked}
-                      checked={checked.includes(i)}
-                      onChange={(e) => setChecked(e.target.checked ? [...checked, i] : checked.filter((x) => x !== i))}
-                    />
+                    {a.type !== "no_action" && (
+                      <input
+                        type="checkbox"
+                        disabled={blocked || busy || result.applied.includes(i)}
+                        checked={checked.includes(i) || result.applied.includes(i)}
+                        onChange={(e) => setChecked(e.target.checked ? [...checked, i] : checked.filter((x) => x !== i))}
+                      />
+                    )}
                     <strong>{a.type}</strong> on {a.order_id}
                     {a.amount_eur != null && <> · {a.amount_eur.toFixed(2)} EUR</>}
                     {a.new_address && <> · to {a.new_address}</>}
                     {a.needs_approval && <span className="tag warn">needs approval</span>}
+                    {result.applied.includes(i) && <span className="tag">applied</span>}
                     <div className="muted">{a.reason}</div>
                   </label>
                 ))}
-                <button onClick={submit} disabled={blocked || checked.length === 0}>
+                <button onClick={submit} disabled={blocked || busy || checked.length === 0}>
                   Approve selected
                 </button>
 

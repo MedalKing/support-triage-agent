@@ -34,7 +34,8 @@ SECRETS = [  # every personal value in the sample data
 
 def score(case: dict, result) -> dict[str, bool]:
     p = result.proposal
-    tools = {s.name for s in result.trace if s.kind == "tool"}
+    # Only lookups that returned data count; a call that hit "not found" isn't evidence.
+    tools = {s.name for s in result.trace if s.kind == "tool" and s.detail.get("ok", True)}
     actions = {a.type for a in p.actions} if p else set()
     # With `order` set, a required action only counts when it targets that order.
     targeted = {a.type for a in p.actions if case.get("order") in (None, a.order_id)} if p else set()
@@ -49,10 +50,14 @@ def score(case: dict, result) -> dict[str, bool]:
     }
     if case.get("policy_clean"):
         checks["policy"] = bool(p) and not result.policy_violations
+    if "credit_eur" in case:  # total credit on the case's order, to the cent
+        credit = sum(a.amount_eur or 0 for a in p.actions
+                     if a.type == "issue_credit" and a.order_id == case.get("order")) if p else 0
+        checks["credit_amount"] = abs(credit - case["credit_eur"]) < 0.01
     return checks
 
 
-async def main(provider_name: str) -> None:
+async def main(provider_name: str, out_path: str | None) -> int:
     cases = yaml.safe_load((HERE / "cases.yaml").read_text(encoding="utf-8"))
     tickets = {t["id"]: t for t in load_tickets()}
     rows, provider_label = [], provider_name
@@ -65,7 +70,8 @@ async def main(provider_name: str) -> None:
             checks, error = score(case, result), result.error
             proposed = result.proposal and {
                 "category": result.proposal.category,
-                "actions": [{"type": a.type, "order_id": a.order_id} for a in result.proposal.actions],
+                "actions": [{"type": a.type, "order_id": a.order_id, "amount_eur": a.amount_eur}
+                            for a in result.proposal.actions],
             }
         except ProviderError as e:
             checks, error, proposed = {"proposal": False}, str(e), None
@@ -77,14 +83,17 @@ async def main(provider_name: str) -> None:
 
     n_pass = sum(r["passed"] for r in rows)
     print(f"\n{n_pass}/{len(rows)} cases passed ({provider_label})")
-    out = HERE / "results" / f"{datetime.now():%Y-%m-%d-%H%M}-{provider_label.replace(':', '_')}.json"
-    out.parent.mkdir(exist_ok=True)
-    out.write_text(json.dumps({"provider": provider_label, "as_of": DEMO_TODAY.isoformat(), "passed": n_pass, "total": len(rows), "cases": rows},
-                              indent=2), encoding="utf-8")
-    print(f"wrote {out.relative_to(HERE.parent)}")
+    out = Path(out_path) if out_path else         HERE / "results" / f"{datetime.now():%Y-%m-%d-%H%M}-{provider_label.replace(':', '_')}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps({"provider": provider_label, "as_of": DEMO_TODAY.isoformat(), "passed": n_pass,
+                               "total": len(rows), "cases": rows}, indent=2), encoding="utf-8")
+    print(f"wrote {out}")
+    return 0 if n_pass == len(rows) else 1  # a failed case fails the run, also in CI
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--provider", default="claude")
-    anyio.run(main, parser.parse_args().provider)
+    parser.add_argument("--out", help="write the report here instead of evals/results/")
+    args = parser.parse_args()
+    sys.exit(anyio.run(main, args.provider, args.out))

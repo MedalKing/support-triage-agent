@@ -69,10 +69,11 @@ def test_contact_details_in_erp_results_are_redacted_too():
 
 def test_invalid_proposal_is_returned_to_model_for_a_retry():
     result, provider = run("T-1001", [
+        [("get_order", {"order_id": "SO-5001"})],
         [("submit_proposal", {"category": "nonsense"})],
         [("submit_proposal", proposal())],
     ])
-    assert provider.tool_results[0].is_error
+    assert provider.tool_results[1].is_error
     assert result.proposal is not None
 
 

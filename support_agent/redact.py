@@ -13,10 +13,15 @@ from dataclasses import dataclass, field
 # Order matters: the most specific patterns run first so a phone pattern can't eat an IBAN.
 PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("EMAIL", re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")),
-    ("IBAN", re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b")),
-    ("HETU", re.compile(r"\b\d{6}[-+A-FU-Y]\d{3}[0-9A-Y]\b")),
-    ("PHONE", re.compile(r"(?<![\w-])(?:\+\d{1,3}[ -]?)?\(?0?\d{2,3}\)?[ -]?\d{3}[ -]?\d{3,4}\b")),
+    ("IBAN", re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b", re.IGNORECASE)),
+    ("HETU", re.compile(r"\b\d{6}[-+A-FU-Y]\d{3}[0-9A-Y]\b", re.IGNORECASE)),
+    # Digit groups separated by spaces, e.g. +358 40 123 4567, +358 40 1234 567, 0442223333.
+    # A dash only right after the area code, so dates like 2026-11-23 are left alone.
+    ("PHONE", re.compile(r"(?<![\w-])(?:\+\d{1,3}[ ]?)?\(?0?\d{1,3}\)?[ -]?\d{2,4}(?:[ ]?\d{2,4}){1,3}(?![\w-])")),
 ]
+MIN_PHONE_DIGITS = 7  # shorter digit runs are quantities or ids, not phone numbers
+# Only contact details go back into the draft reply. Bank accounts and identity codes never do.
+RESTORABLE = {"EMAIL", "PHONE"}
 
 
 @dataclass
@@ -28,8 +33,13 @@ class Redactor:
 
     def redact(self, text: str) -> str:
         for kind, pattern in PATTERNS:
-            text = pattern.sub(lambda m, kind=kind: self._placeholder(kind, m.group(0)), text)
+            text = pattern.sub(lambda m, kind=kind: self._replace(kind, m.group(0)), text)
         return text
+
+    def _replace(self, kind: str, value: str) -> str:
+        if kind == "PHONE" and sum(c.isdigit() for c in value) < MIN_PHONE_DIGITS:
+            return value
+        return self._placeholder(kind, value)
 
     def _placeholder(self, kind: str, value: str) -> str:
         if value.startswith("[") and value.endswith("]"):
@@ -40,8 +50,10 @@ class Redactor:
         return self.forward[value]
 
     def restore(self, text: str) -> str:
+        """Put contact details back for the human reviewer. Bank accounts and identity codes stay hidden."""
         for value, placeholder in self.forward.items():
-            text = text.replace(placeholder, value)
+            if placeholder[1:].split("_")[0] in RESTORABLE:
+                text = text.replace(placeholder, value)
         return text
 
     @property

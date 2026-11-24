@@ -42,6 +42,12 @@ class ERP:
     def get_shipment_events(self, shipment_id: str) -> list[dict[str, Any]] | None:
         return self._data["shipments"].get(shipment_id)
 
+    def get_order_by_shipment(self, shipment_id: str) -> dict[str, Any] | None:
+        for oid, o in self._data["orders"].items():
+            if o.get("shipment_id") == shipment_id:
+                return self.get_order(oid)
+        return None
+
     def get_stock(self, sku: str) -> dict[str, Any] | None:
         stock = self._data["stock"].get(sku)
         return None if stock is None else {"sku": sku, **stock}

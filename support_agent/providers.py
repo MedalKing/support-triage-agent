@@ -123,6 +123,12 @@ class ClaudeProvider:
         self.messages.append({"role": "user", "content": text})
 
 
+@lru_cache(maxsize=1)
+def _shared_http_client() -> httpx.Client:
+    """One connection pool per process instead of one client per ticket."""
+    return httpx.Client(timeout=300)
+
+
 class OllamaProvider:
     """A local model through Ollama's native chat API (http://localhost:11434/api/chat)."""
 
@@ -131,7 +137,7 @@ class OllamaProvider:
         self.model = model or os.environ.get("OLLAMA_MODEL", "qwen3:8b")
         self.host = (host or os.environ.get("OLLAMA_HOST", "http://localhost:11434")).rstrip("/")
         self.name = f"ollama:{self.model}"
-        self.http = http or httpx.Client(timeout=300)
+        self.http = http or _shared_http_client()
         self._next_id = 0
 
     def start(self, system: str, user: str, tools: list[ToolSpec]) -> None:
@@ -153,7 +159,10 @@ class OllamaProvider:
             r.raise_for_status()
         except httpx.HTTPError as e:
             raise ProviderError(f"Ollama request failed: {e}") from e
-        message = r.json()["message"]
+        try:
+            message = r.json()["message"]
+        except (ValueError, KeyError, TypeError) as e:
+            raise ProviderError(f"Unexpected response from Ollama: {r.text[:200]}") from e
         self.messages.append(message)
         calls = []
         for tc in message.get("tool_calls") or []:

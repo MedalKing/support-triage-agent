@@ -36,7 +36,7 @@ def test_required_action_on_the_wrong_order_fails_the_case():
     ticket = {t["id"]: t for t in load_tickets()}["T-1001"]
     actions = [{"type": t, "order_id": "SO-5005", "reason": "late", "amount_eur": None, "new_address": None}
                for t in ("contact_carrier", "expedite_shipment")]
-    script = [[("submit_proposal", proposal(actions=actions))]]
+    script = [[("get_order", {"order_id": "SO-5001"})], [("submit_proposal", proposal(actions=actions))]]
     result = anyio.run(lambda: triage(ticket, ScriptedProvider(script), ERP()))
     case = {"category": "carrier_delay", "order": "SO-5001",
             "must_propose": ["contact_carrier", "expedite_shipment"], "policy_clean": True}

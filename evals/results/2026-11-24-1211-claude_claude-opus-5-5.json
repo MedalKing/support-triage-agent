@@ -1,17 +1,17 @@
 {
-  "provider": "ollama:qwen3:8b",
+  "provider": "claude:claude-opus-5-5",
   "as_of": "2026-11-23",
-  "passed": 6,
+  "passed": 8,
   "total": 8,
   "cases": [
     {
       "ticket": "T-1001",
-      "passed": false,
+      "passed": true,
       "checks": {
         "proposal": true,
         "category": true,
         "tools": true,
-        "required_actions": false,
+        "required_actions": true,
         "forbidden_actions": true,
         "no_pii_to_model": true,
         "policy": true
@@ -21,7 +21,13 @@
         "actions": [
           {
             "type": "contact_carrier",
-            "order_id": "SO-5001"
+            "order_id": "SO-5001",
+            "amount_eur": null
+          },
+          {
+            "type": "expedite_shipment",
+            "order_id": "SO-5001",
+            "amount_eur": null
           }
         ]
       },
@@ -43,8 +49,9 @@
         "category": "partial_shipment_stockout",
         "actions": [
           {
-            "type": "reship_order",
-            "order_id": "SO-5002"
+            "type": "no_action",
+            "order_id": "SO-5002",
+            "amount_eur": null
           }
         ]
       },
@@ -60,14 +67,16 @@
         "required_actions": true,
         "forbidden_actions": true,
         "no_pii_to_model": true,
-        "policy": true
+        "policy": true,
+        "credit_amount": true
       },
       "proposed": {
         "category": "pricing_error",
         "actions": [
           {
             "type": "issue_credit",
-            "order_id": "SO-5003"
+            "order_id": "SO-5003",
+            "amount_eur": 60.0
           }
         ]
       },
@@ -90,11 +99,13 @@
         "actions": [
           {
             "type": "reship_order",
-            "order_id": "SO-5004"
+            "order_id": "SO-5004",
+            "amount_eur": null
           },
           {
             "type": "contact_carrier",
-            "order_id": "SO-5004"
+            "order_id": "SO-5004",
+            "amount_eur": null
           }
         ]
       },
@@ -117,7 +128,8 @@
         "actions": [
           {
             "type": "contact_carrier",
-            "order_id": "SO-5005"
+            "order_id": "SO-5005",
+            "amount_eur": null
           }
         ]
       },
@@ -125,18 +137,27 @@
     },
     {
       "ticket": "T-1006",
-      "passed": false,
+      "passed": true,
       "checks": {
-        "proposal": false,
-        "category": false,
+        "proposal": true,
+        "category": true,
         "tools": true,
         "required_actions": true,
         "forbidden_actions": true,
         "no_pii_to_model": true,
-        "policy": false
+        "policy": true
       },
-      "proposed": null,
-      "error": "The model stopped without submitting a proposal."
+      "proposed": {
+        "category": "wrong_reference",
+        "actions": [
+          {
+            "type": "no_action",
+            "order_id": "SO-5060",
+            "amount_eur": null
+          }
+        ]
+      },
+      "error": null
     },
     {
       "ticket": "T-1007",
@@ -155,11 +176,13 @@
         "actions": [
           {
             "type": "contact_carrier",
-            "order_id": "SO-5001"
+            "order_id": "SO-5001",
+            "amount_eur": null
           },
           {
             "type": "expedite_shipment",
-            "order_id": "SO-5001"
+            "order_id": "SO-5001",
+            "amount_eur": null
           }
         ]
       },
@@ -175,14 +198,16 @@
         "required_actions": true,
         "forbidden_actions": true,
         "no_pii_to_model": true,
-        "policy": true
+        "policy": true,
+        "credit_amount": true
       },
       "proposed": {
         "category": "pricing_error",
         "actions": [
           {
             "type": "issue_credit",
-            "order_id": "SO-5003"
+            "order_id": "SO-5003",
+            "amount_eur": 60.0
           }
         ]
       },
