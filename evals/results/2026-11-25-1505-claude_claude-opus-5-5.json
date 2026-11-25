@@ -1,8 +1,8 @@
 {
-  "provider": "auto:claude-haiku-5-5->claude-opus-5-5",
+  "provider": "claude:claude-opus-5-5",
   "as_of": "2026-11-23",
   "passed": 8,
-  "escalated": 1,
+  "escalated": 0,
   "total": 8,
   "cases": [
     {
@@ -182,14 +182,7 @@
           }
         ]
       },
-      "escalation": {
-        "from": "claude:claude-haiku-5-5",
-        "to": "claude:claude-opus-5-5",
-        "reasons": [
-          "the model's confidence was medium",
-          "it proposed taking no action and real actions at the same time"
-        ]
-      },
+      "escalation": null,
       "error": null
     },
     {

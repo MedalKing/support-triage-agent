@@ -159,31 +159,21 @@
     },
     {
       "ticket": "T-1006",
-      "passed": true,
+      "passed": false,
       "checks": {
-        "proposal": true,
-        "category": true,
+        "proposal": false,
+        "category": false,
         "tools": true,
         "required_actions": true,
         "forbidden_actions": true,
         "no_pii_to_model": true,
-        "reply_ready": true,
-        "policy": true,
-        "only_allowed_actions": true
+        "reply_ready": false,
+        "policy": false,
+        "only_allowed_actions": false
       },
-      "proposed": {
-        "category": "wrong_reference",
-        "stated_delay": [],
-        "actions": [
-          {
-            "type": "no_action",
-            "order_id": "SO-5006",
-            "amount_eur": null
-          }
-        ]
-      },
+      "proposed": null,
       "escalation": null,
-      "error": null
+      "error": "The proposal was rejected 3 times."
     },
     {
       "ticket": "T-1007",
@@ -222,24 +212,30 @@
     },
     {
       "ticket": "T-1008",
-      "passed": false,
+      "passed": true,
       "checks": {
         "proposal": true,
         "category": true,
         "tools": true,
-        "required_actions": false,
+        "required_actions": true,
         "forbidden_actions": true,
         "no_pii_to_model": true,
         "reply_ready": true,
         "policy": true,
         "looked_up_order": true,
         "only_allowed_actions": true,
-        "credit_amount": false
+        "credit_amount": true
       },
       "proposed": {
         "category": "pricing_error",
         "stated_delay": [],
-        "actions": []
+        "actions": [
+          {
+            "type": "issue_credit",
+            "order_id": "SO-5003",
+            "amount_eur": 60.0
+          }
+        ]
       },
       "escalation": null,
       "error": null

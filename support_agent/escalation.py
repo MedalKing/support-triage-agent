@@ -9,6 +9,7 @@ The signals are things code can check, not the model's say-so alone:
 - a proposal that breaks policy,
 - the model rated its own confidence below high,
 - the category is "other" (no runbook fits),
+- no actions at all, not even no_action (the model didn't decide anything),
 - no_action sits next to real actions (the model couldn't decide whether to act),
 - the model had to be corrected first (proposal refused, or fields dropped from it).
 """

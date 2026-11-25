@@ -75,12 +75,12 @@ Eight sample emails, scored with deterministic checks: category; lookups that re
 
 | Run (2026-11-25, final suite) | Passed | Escalated to Opus | Result file |
 | --- | --- | --- | --- |
-| `auto`: Claude Haiku 5.5, escalating to Claude Opus 5.5 | 8/8 | 1 (T-1004: confidence medium) | [1447](evals/results/2026-11-25-1447-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
-| `auto`, second run | 8/8 | 1 (T-1006: confidence medium, `no_action` mixed with real actions) | [1449](evals/results/2026-11-25-1449-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
-| Claude Haiku 5.5 only | 7/8 | – | [1444](evals/results/2026-11-25-1444-claude_claude-haiku-5-5.json) |
-| Claude Opus 5.5 only (effort medium) | 8/8 | – | [1445](evals/results/2026-11-25-1445-claude_claude-opus-5-5.json) |
+| `auto`: Claude Haiku 5.5, escalating to Claude Opus 5.5 | 8/8 | 0 | [1459](evals/results/2026-11-25-1459-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
+| `auto`, second run | 8/8 | 4 (T-1001, T-1003: no usable proposal after three rejections; T-1005, T-1006: confidence medium) | [1502](evals/results/2026-11-25-1502-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
+| Claude Haiku 5.5 only | 7/8 | – | [1503](evals/results/2026-11-25-1503-claude_claude-haiku-5-5.json) |
+| Claude Opus 5.5 only (effort medium) | 8/8 | – | [1505](evals/results/2026-11-25-1505-claude_claude-opus-5-5.json) |
 
-Runs vary, and which tickets escalate changes from run to run (1 to 4 of 8 in the runs made while finishing this version). Haiku alone failed T-1008 once: it found the overcharge but proposed no actions at all, with high confidence. Before, that would not have escalated either; "no actions at all" is now a signal. Eight cases can't show how much escalation buys overall; measuring cost, latency and accuracy per model on more cases is the next step. A local Qwen3 8B through Ollama scored 4/8 on an earlier, looser version of the suite (2026-11-24): it missed an action and picked wrong categories, and the policy check blocked its one out-of-policy action (reshipping goods that were out of stock).
+Runs vary, and which tickets escalate changes from run to run (0 to 4 of 8 in the runs made while finishing this version). Haiku alone failed one case in each of its last two runs: here T-1006, where it never produced a valid proposal (rejected three times), and before that T-1008, where it found the overcharge but proposed no actions at all, with high confidence. In `auto` both hand the ticket to Opus; "no actions at all" became a signal after that T-1008 run. Eight cases can't show how much escalation buys overall; measuring cost, latency and accuracy per model on more cases is the next step. A local Qwen3 8B through Ollama scored 4/8 on an earlier, looser version of the suite (2026-11-24): it missed an action and picked wrong categories, and the policy check blocked its one out-of-policy action (reshipping goods that were out of stock).
 
 ### What failed, and what changed
 

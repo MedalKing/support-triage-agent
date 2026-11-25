@@ -428,11 +428,19 @@ function FirstAttempt({ result }: { result: TriageResult }) {
   const first = result.trace
     .slice(0, cut)
     .find((s) => s.name === "submit_proposal")?.detail as
-    | { actions: { type: string; order_id: string; amount_eur: number | null }[]; confidence: string }
+    | {
+        actions: { type: string; order_id: string; amount_eur: number | null; new_address: string | null }[];
+        confidence: string;
+      }
     | undefined;
   if (!first) return <> {modelName(result.escalation!.from)} gave no usable proposal.</>;
   const actions = first.actions
-    .map((a) => `${a.type} on ${a.order_id}${a.amount_eur != null ? ` (${a.amount_eur.toFixed(2)} €)` : ""}`)
+    .map(
+      (a) =>
+        `${a.type} on ${a.order_id}${a.amount_eur != null ? ` (${a.amount_eur.toFixed(2)} €)` : ""}${
+          a.new_address ? ` to ${a.new_address}` : ""
+        }`,
+    )
     .join(", ");
   return (
     <>

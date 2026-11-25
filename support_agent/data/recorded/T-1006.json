@@ -1,33 +1,47 @@
 {
   "ticket_id": "T-1006",
-  "provider": "claude:claude-haiku-5-5",
-  "escalation": null,
+  "provider": "claude:claude-opus-5-5",
+  "escalation": {
+    "from": "claude:claude-haiku-5-5",
+    "to": "claude:claude-opus-5-5",
+    "reasons": [
+      "the model's confidence was medium"
+    ]
+  },
   "proposal": {
     "category": "wrong_reference",
-    "likely_cause": "The order number SO-5060 does not exist in the ERP. The customer's 50-unit heavy-duty box order from October is most likely SO-5006 (order date 2026-10-06, 50 x BOX-HD-500), which is already marked delivered. The customer should confirm the order number before we take any action.",
+    "likely_cause": "Order SO-5060 does not exist; the customer most likely means SO-5006 (50 x BOX-HD-500 heavy-duty boxes, ordered 2026-10-06), which looks like a transposed number. ERP shows SO-5006 as delivered on 2026-10-20.",
     "evidence": [
-      "get_order SO-5060: 'order SO-5060 not found'",
-      "list_customer_orders C-203: SO-5003 (invoiced, promised 2026-11-05, BOX-HD-500) and SO-5006 (delivered, promised 2026-10-20, BOX-HD-500)",
-      "get_order SO-5006: order_date 2026-10-06, 50 x BOX-HD-500 at 2.05 EUR, status delivered, shipment SH-9006 via ArcticPost, invoice total 102.5 EUR",
-      "get_order SO-5003: order_date 2026-10-14, 200 x BOX-HD-500, so it does not match the 50-unit quantity",
-      "Runbook order-not-found: do not act on a guessed order; propose no_action and ask the customer to confirm the order number, naming the likely match"
+      "get_order SO-5060: order not found",
+      "list_customer_orders C-203: only SO-5003 (BOX-HD-500, invoiced) and SO-5006 (BOX-HD-500, delivered)",
+      "SO-5006: order_date 2026-10-06, 50 x BOX-HD-500, status delivered, promised 2026-10-20, shipment SH-9006 (ArcticPost)",
+      "SH-9006: picked_up Espoo DC 2026-10-18 09:00, delivered Rovaniemi 2026-10-20 13:00",
+      "SO-5003: order_date 2026-10-14, 200 x BOX-HD-500, invoiced - quantity does not match the 50 in the ticket",
+      "Runbook order-not-found: do not act on a guessed order; propose no_action and ask the customer to confirm, naming the likely match"
     ],
     "actions": [
       {
         "type": "no_action",
-        "order_id": "SO-5060",
-        "reason": "Order number does not exist. Per the order-not-found runbook, no action on a guessed order. Ask the customer to confirm the order number; the likely match is SO-5006.",
+        "order_id": "SO-5006",
+        "reason": "Ticket order number SO-5060 not found. Likely match is SO-5006 (50 heavy-duty boxes, October). Per order-not-found runbook, ask customer to confirm before any action.",
         "amount_eur": null,
         "new_address": null,
         "needs_approval": false,
         "approval_reason": null
       }
     ],
-    "customer_reply": "Hello Mikko,\n\nThank you for getting in touch. We could not find an order numbered SO-5060 on your account. The October order we have for 50 heavy-duty boxes (BOX-HD-500) is SO-5006, placed on 6 October 2026. Our records show it as delivered, with a promised date of 20 October 2026.\n\nCould you please confirm whether SO-5006 is the order you meant? If you were thinking of a different order, such as the 200-box order SO-5003, let us know and we will check its status for you.\n\nKind regards,\nCustomer Support",
-    "confidence": "high"
+    "customer_reply": "Hello Mikko,\n\nThank you for your message. We could not find an order with the number SO-5060 in our system. The closest match on your account is order SO-5006, placed on 6 October 2026 for 50 heavy-duty boxes (BOX-HD-500). According to our records and the carrier's tracking, that order was delivered to Rovaniemi on 20 October 2026.\n\nCould you please confirm whether SO-5006 is the order you mean? If it is a different order, please send us the correct order number or your order confirmation, and we will look into it right away.\n\nBest regards,\nCustomer Support",
+    "confidence": "medium"
   },
   "policy_violations": [],
   "trace": [
+    {
+      "kind": "note",
+      "name": "first_attempt",
+      "detail": {
+        "provider": "claude:claude-haiku-5-5"
+      }
+    },
     {
       "kind": "tool",
       "name": "get_order",
@@ -49,11 +63,6 @@
         "result": "[{\"order_id\": \"SO-5003\", \"status\": \"invoiced\", \"promised_date\": \"2026-11-05\", \"skus\": [\"BOX-HD-500\"]}, {\"order_id\": \"SO-5006\", \"status\": \"delivered\", \"promised_date\": \"2026-10-20\", \"skus\": [\"BOX-HD-500\"]}]",
         "ok": true
       }
-    },
-    {
-      "kind": "model",
-      "name": "text",
-      "detail": "SO-5060 isn't in the system, and C-203 has two orders on file. I'll check both, along with the wrong-reference runbook."
     },
     {
       "kind": "tool",
@@ -82,9 +91,9 @@
       "name": "search_runbooks",
       "detail": {
         "arguments": {
-          "query": "wrong order reference customer order id not found"
+          "query": "wrong order reference customer asks order status order not found"
         },
-        "result": "[{\"runbook\": \"order-not-found\", \"score\": 4.13, \"text\": \"# Order not found\\n\\nApplies when the order number in a ticket does not exist.\\n\\n1. Look up the customer's orders and find the most likely match (similar number, product and date).\\n2. Do not take action on a guessed order. Propose `no_action` and ask the customer to confirm the order number, naming the likely match.\\n\"}, {\"runbook\": \"address-change\", \"score\": 1.42, \"text\": \"# Delivery address change\\n\\nApplies when the customer wants to change where an order is delivered.\\n\\n1. Before pickup: propose `update_delivery_address` (needs approval).\\n2. After pickup (`picked_up` event exists): the address cannot be changed in our system. Propose `contact_carrier` to request a redirect; NordFreight allows redirects while in transit, other carriers do not.\\n3. Confirm the new address with the customer in the reply.\\n\"}]",
+        "result": "[{\"runbook\": \"order-not-found\", \"score\": 4.6, \"text\": \"# Order not found\\n\\nApplies when the order number in a ticket does not exist.\\n\\n1. Look up the customer's orders and find the most likely match (similar number, product and date).\\n2. Do not take action on a guessed order. Propose `no_action` and ask the customer to confirm the order number, naming the likely match.\\n\"}, {\"runbook\": \"address-change\", \"score\": 1.68, \"text\": \"# Delivery address change\\n\\nApplies when the customer wants to change where an order is delivered.\\n\\n1. Before pickup: propose `update_delivery_address` (needs approval).\\n2. After pickup (`picked_up` event exists): the address cannot be changed in our system. Propose `contact_carrier` to request a redirect; NordFreight allows redirects while in transit, other carriers do not.\\n3. Confirm the new address with the customer in the reply.\\n\"}]",
         "ok": true
       }
     },
@@ -93,25 +102,128 @@
       "name": "submit_proposal",
       "detail": {
         "category": "wrong_reference",
-        "likely_cause": "The order number SO-5060 does not exist in the ERP. The customer's 50-unit heavy-duty box order from October is most likely SO-5006 (order date 2026-10-06, 50 x BOX-HD-500), which is already marked delivered. The customer should confirm the order number before we take any action.",
+        "likely_cause": "The order number SO-5060 does not exist in the ERP. The customer's October order for 50 heavy-duty boxes appears to be SO-5006 (BOX-HD-500, qty 50, order date 2026-10-06), which the runbook treats as the likely match. The customer likely quoted the wrong number.",
         "evidence": [
-          "get_order SO-5060: 'order SO-5060 not found'",
+          "get_order SO-5060: error 'order SO-5060 not found'",
           "list_customer_orders C-203: SO-5003 (invoiced, promised 2026-11-05, BOX-HD-500) and SO-5006 (delivered, promised 2026-10-20, BOX-HD-500)",
-          "get_order SO-5006: order_date 2026-10-06, 50 x BOX-HD-500 at 2.05 EUR, status delivered, shipment SH-9006 via ArcticPost, invoice total 102.5 EUR",
-          "get_order SO-5003: order_date 2026-10-14, 200 x BOX-HD-500, so it does not match the 50-unit quantity",
+          "get_order SO-5006: order_date 2026-10-06, line BOX-HD-500 qty 50 at 2.05 EUR, invoice total 102.50 EUR, status delivered, shipment SH-9006",
+          "get_order SO-5003: order_date 2026-10-14, BOX-HD-500 qty 200, so it does not match the 50-box order",
           "Runbook order-not-found: do not act on a guessed order; propose no_action and ask the customer to confirm the order number, naming the likely match"
         ],
         "actions": [
           {
             "type": "no_action",
             "order_id": "SO-5060",
-            "reason": "Order number does not exist. Per the order-not-found runbook, no action on a guessed order. Ask the customer to confirm the order number; the likely match is SO-5006.",
+            "reason": "Order does not exist. Per the order-not-found runbook, no action on a guessed order. Ask the customer to confirm the order number; the likely match is SO-5006.",
             "amount_eur": null,
             "new_address": null
           }
         ],
-        "customer_reply": "Hello Mikko,\n\nThank you for getting in touch. We could not find an order numbered SO-5060 on your account. The October order we have for 50 heavy-duty boxes (BOX-HD-500) is SO-5006, placed on 6 October 2026. Our records show it as delivered, with a promised date of 20 October 2026.\n\nCould you please confirm whether SO-5006 is the order you meant? If you were thinking of a different order, such as the 200-box order SO-5003, let us know and we will check its status for you.\n\nKind regards,\nCustomer Support",
-        "confidence": "high"
+        "customer_reply": "Hello Mikko,\n\nThank you for your message. We could not find an order numbered SO-5060 on your account. Could you please confirm the order number? From our records, the October order for 50 heavy-duty boxes appears to be SO-5006, order date 6 October 2026. Our records show that order as delivered, with a promised date of 20 October 2026. If that is the order you mean, please reply to confirm and we will look into it further. If you meant a different order, please send us its number and we will check it.\n\nKind regards,\nCustomer Support",
+        "confidence": "medium"
+      }
+    },
+    {
+      "kind": "note",
+      "name": "escalated",
+      "detail": {
+        "to": "claude:claude-opus-5-5",
+        "reasons": [
+          "the model's confidence was medium"
+        ]
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "get_order",
+      "detail": {
+        "arguments": {
+          "order_id": "SO-5060"
+        },
+        "result": "{\"error\": \"order SO-5060 not found\"}",
+        "ok": false
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "list_customer_orders",
+      "detail": {
+        "arguments": {
+          "customer_id": "C-203"
+        },
+        "result": "[{\"order_id\": \"SO-5003\", \"status\": \"invoiced\", \"promised_date\": \"2026-11-05\", \"skus\": [\"BOX-HD-500\"]}, {\"order_id\": \"SO-5006\", \"status\": \"delivered\", \"promised_date\": \"2026-10-20\", \"skus\": [\"BOX-HD-500\"]}]",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "get_order",
+      "detail": {
+        "arguments": {
+          "order_id": "SO-5003"
+        },
+        "result": "{\"order_id\": \"SO-5003\", \"customer_id\": \"C-203\", \"order_date\": \"2026-10-14\", \"status\": \"invoiced\", \"lines\": [{\"sku\": \"BOX-HD-500\", \"qty\": 200, \"unit_price_eur\": 2.35}], \"quoted_unit_price_eur\": 2.05, \"promised_date\": \"2026-11-05\", \"carrier\": \"ArcticPost\", \"shipment_id\": \"SH-9003\", \"price_list\": \"PL-2026-Q3\", \"delivery_address\": \"Tunturitie 3, Rovaniemi\", \"invoice_id\": \"INV-7003\", \"invoice_total_eur\": 470.0, \"customer\": {\"id\": \"C-203\", \"name\": \"Lapland Outdoor Gear\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"standard\"}}",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "get_order",
+      "detail": {
+        "arguments": {
+          "order_id": "SO-5006"
+        },
+        "result": "{\"order_id\": \"SO-5006\", \"customer_id\": \"C-203\", \"order_date\": \"2026-10-06\", \"status\": \"delivered\", \"lines\": [{\"sku\": \"BOX-HD-500\", \"qty\": 50, \"unit_price_eur\": 2.05}], \"promised_date\": \"2026-10-20\", \"carrier\": \"ArcticPost\", \"shipment_id\": \"SH-9006\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Tunturitie 3, Rovaniemi\", \"invoice_total_eur\": 102.5, \"customer\": {\"id\": \"C-203\", \"name\": \"Lapland Outdoor Gear\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"standard\"}}",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "search_runbooks",
+      "detail": {
+        "arguments": {
+          "query": "order not found wrong order reference status inquiry"
+        },
+        "result": "[{\"runbook\": \"order-not-found\", \"score\": 4.02, \"text\": \"# Order not found\\n\\nApplies when the order number in a ticket does not exist.\\n\\n1. Look up the customer's orders and find the most likely match (similar number, product and date).\\n2. Do not take action on a guessed order. Propose `no_action` and ask the customer to confirm the order number, naming the likely match.\\n\"}, {\"runbook\": \"address-change\", \"score\": 1.3, \"text\": \"# Delivery address change\\n\\nApplies when the customer wants to change where an order is delivered.\\n\\n1. Before pickup: propose `update_delivery_address` (needs approval).\\n2. After pickup (`picked_up` event exists): the address cannot be changed in our system. Propose `contact_carrier` to request a redirect; NordFreight allows redirects while in transit, other carriers do not.\\n3. Confirm the new address with the customer in the reply.\\n\"}]",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "get_shipment_events",
+      "detail": {
+        "arguments": {
+          "shipment_id": "SH-9006"
+        },
+        "result": "[{\"ts\": \"2026-10-18T09:00\", \"event\": \"picked_up\", \"location\": \"Espoo DC\"}, {\"ts\": \"2026-10-20T13:00\", \"event\": \"delivered\", \"location\": \"Rovaniemi\"}]",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "submit_proposal",
+      "detail": {
+        "category": "wrong_reference",
+        "likely_cause": "Order SO-5060 does not exist; the customer most likely means SO-5006 (50 x BOX-HD-500 heavy-duty boxes, ordered 2026-10-06), which looks like a transposed number. ERP shows SO-5006 as delivered on 2026-10-20.",
+        "evidence": [
+          "get_order SO-5060: order not found",
+          "list_customer_orders C-203: only SO-5003 (BOX-HD-500, invoiced) and SO-5006 (BOX-HD-500, delivered)",
+          "SO-5006: order_date 2026-10-06, 50 x BOX-HD-500, status delivered, promised 2026-10-20, shipment SH-9006 (ArcticPost)",
+          "SH-9006: picked_up Espoo DC 2026-10-18 09:00, delivered Rovaniemi 2026-10-20 13:00",
+          "SO-5003: order_date 2026-10-14, 200 x BOX-HD-500, invoiced - quantity does not match the 50 in the ticket",
+          "Runbook order-not-found: do not act on a guessed order; propose no_action and ask the customer to confirm, naming the likely match"
+        ],
+        "actions": [
+          {
+            "type": "no_action",
+            "order_id": "SO-5006",
+            "reason": "Ticket order number SO-5060 not found. Likely match is SO-5006 (50 heavy-duty boxes, October). Per order-not-found runbook, ask customer to confirm before any action.",
+            "amount_eur": null,
+            "new_address": null
+          }
+        ],
+        "customer_reply": "Hello Mikko,\n\nThank you for your message. We could not find an order with the number SO-5060 in our system. The closest match on your account is order SO-5006, placed on 6 October 2026 for 50 heavy-duty boxes (BOX-HD-500). According to our records and the carrier's tracking, that order was delivered to Rovaniemi on 20 October 2026.\n\nCould you please confirm whether SO-5006 is the order you mean? If it is a different order, please send us the correct order number or your order confirmation, and we will look into it right away.\n\nBest regards,\nCustomer Support",
+        "confidence": "medium"
       }
     }
   ],

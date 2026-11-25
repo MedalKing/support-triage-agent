@@ -1,44 +1,31 @@
 {
   "ticket_id": "T-1005",
-  "provider": "claude:claude-opus-5-5",
-  "escalation": {
-    "from": "claude:claude-haiku-5-5",
-    "to": "claude:claude-opus-5-5",
-    "reasons": [
-      "the model's confidence was medium"
-    ]
-  },
+  "provider": "claude:claude-haiku-5-5",
+  "escalation": null,
   "proposal": {
     "category": "address_change",
-    "likely_cause": "Customer wants SO-5005 delivered to their new warehouse in Kemi instead of Oulu. The shipment was already picked up, so the address can't be changed in our system. Because NordFreight allows redirects while goods are in transit, a redirect can be requested through the carrier.",
+    "likely_cause": "Order SO-5005 was picked up by NordFreight at Espoo DC on 2026-11-20 and is in transit on linehaul E75, so the delivery address can no longer be changed in our system. The customer's request for Satamatie 2, Kemi can only be handled as a carrier redirect, which NordFreight allows while in transit.",
     "evidence": [
-      "SO-5005: status shipped, delivery_address Teollisuuskatu 5, Oulu, carrier NordFreight, shipment SH-9005, promised 2026-11-24",
-      "SH-9005: picked_up 2026-11-20T08:00 at Espoo DC; in_transit 2026-11-20T21:00 on NordFreight linehaul E75; no delivery event yet",
-      "Runbook address-change step 2: after pickup, propose contact_carrier for a redirect; NordFreight allows redirects while in transit"
+      "SO-5005 (customer C-201, Pohjola Bakery Ltd): status shipped, current delivery address Teollisuuskatu 5, Oulu, promised date 2026-11-24, carrier NordFreight, shipment SH-9005.",
+      "SH-9005 events: 2026-11-20T08:00 picked_up at Espoo DC; 2026-11-20T21:00 in_transit at NordFreight linehaul E75.",
+      "Runbook 'address-change', step 2: after pickup, the address cannot be changed in our system; propose contact_carrier to request a redirect, which NordFreight allows in transit."
     ],
     "actions": [
       {
         "type": "contact_carrier",
         "order_id": "SO-5005",
-        "reason": "Shipment SH-9005 already picked up (2026-11-20) and in transit with NordFreight; request redirect from Teollisuuskatu 5, Oulu to Satamatie 2, Kemi per address-change runbook step 2.",
+        "reason": "Shipment SH-9005 was picked up on 2026-11-20 and is in transit, so the address cannot be updated in our system. Ask NordFreight to redirect the delivery from Teollisuuskatu 5, Oulu to Satamatie 2, Kemi, per runbook address-change step 2.",
         "amount_eur": null,
         "new_address": "Satamatie 2, Kemi",
         "needs_approval": true,
         "approval_reason": "Sends the goods somewhere else. Check the new address with the customer's message."
       }
     ],
-    "customer_reply": "Hi Anna,\n\nThanks for letting us know about your new warehouse. Your order SO-5005 was already collected by our carrier, NordFreight, on 20 November and is now on its way to Teollisuuskatu 5, Oulu. Because it has been picked up, we can't change the address in our own system. NordFreight does accept redirect requests for shipments in transit, so we will ask them to redirect it.\n\nPlease confirm that the new delivery address is Satamatie 2, Kemi. We'll let you know whether NordFreight can make the redirect. It may also change the delivery date, which is currently 24 November.\n\nBest regards,\nCustomer Support",
+    "customer_reply": "Hello Anna,\n\nThank you for your message about order SO-5005. The order was picked up by our carrier, NordFreight, on 20 November and is already in transit, so we can no longer change the delivery address in our system. Instead, we will ask NordFreight to redirect the delivery to Satamatie 2, Kemi. We will let you know once the carrier has confirmed whether the redirect is possible. The current promised delivery date is 24 November 2026.\n\nKind regards,\nCustomer Support",
     "confidence": "high"
   },
   "policy_violations": [],
   "trace": [
-    {
-      "kind": "note",
-      "name": "first_attempt",
-      "detail": {
-        "provider": "claude:claude-haiku-5-5"
-      }
-    },
     {
       "kind": "tool",
       "name": "get_order",
@@ -55,7 +42,7 @@
       "name": "search_runbooks",
       "detail": {
         "arguments": {
-          "query": "change delivery address for open order"
+          "query": "change delivery address for order"
         },
         "result": "[{\"runbook\": \"address-change\", \"score\": 6.24, \"text\": \"# Delivery address change\\n\\nApplies when the customer wants to change where an order is delivered.\\n\\n1. Before pickup: propose `update_delivery_address` (needs approval).\\n2. After pickup (`picked_up` event exists): the address cannot be changed in our system. Propose `contact_carrier` to request a redirect; NordFreight allows redirects while in transit, other carriers do not.\\n3. Confirm the new address with the customer in the reply.\\n\"}, {\"runbook\": \"transport-damage\", \"score\": 1.69, \"text\": \"# Transport damage\\n\\nApplies when goods arrived damaged.\\n\\n1. Check the delivery event note for a damage remark on the proof of delivery (POD). A remark on the POD means the carrier accepted the damage.\\n2. With a POD remark: propose `reship_order` for the damaged quantity (needs approval) and `contact_carrier` to file a claim.\\n3. Without a POD remark: ask the customer for photos within 7 days before proposing a reship.\\n\"}]",
         "ok": true
@@ -82,89 +69,22 @@
       "name": "submit_proposal",
       "detail": {
         "category": "address_change",
-        "likely_cause": "SO-5005 was picked up by NordFreight at Espoo DC on 2026-11-20 and is in transit on the linehaul, so the delivery address in our system can no longer be changed. The customer's request for Kemi can only be handled as a carrier redirect.",
+        "likely_cause": "Order SO-5005 was picked up by NordFreight at Espoo DC on 2026-11-20 and is in transit on linehaul E75, so the delivery address can no longer be changed in our system. The customer's request for Satamatie 2, Kemi can only be handled as a carrier redirect, which NordFreight allows while in transit.",
         "evidence": [
-          "SO-5005 (customer C-201, Pohjola Bakery Ltd): status shipped, delivery address Teollisuuskatu 5, Oulu, promised date 2026-11-24, carrier NordFreight, shipment SH-9005.",
+          "SO-5005 (customer C-201, Pohjola Bakery Ltd): status shipped, current delivery address Teollisuuskatu 5, Oulu, promised date 2026-11-24, carrier NordFreight, shipment SH-9005.",
           "SH-9005 events: 2026-11-20T08:00 picked_up at Espoo DC; 2026-11-20T21:00 in_transit at NordFreight linehaul E75.",
-          "Runbook 'address-change', step 2: after pickup, propose contact_carrier to request a redirect; NordFreight allows redirects while in transit."
+          "Runbook 'address-change', step 2: after pickup, the address cannot be changed in our system; propose contact_carrier to request a redirect, which NordFreight allows in transit."
         ],
         "actions": [
           {
             "type": "contact_carrier",
             "order_id": "SO-5005",
-            "reason": "Shipment SH-9005 was picked up 2026-11-20 and is in transit, so the address cannot be changed in our system. Ask NordFreight to redirect the delivery from Teollisuuskatu 5, Oulu to Satamatie 2, Kemi, per the address-change runbook. Confirm the redirect is accepted before the promised date of 2026-11-24.",
+            "reason": "Shipment SH-9005 was picked up on 2026-11-20 and is in transit, so the address cannot be updated in our system. Ask NordFreight to redirect the delivery from Teollisuuskatu 5, Oulu to Satamatie 2, Kemi, per runbook address-change step 2.",
             "amount_eur": null,
             "new_address": "Satamatie 2, Kemi"
           }
         ],
-        "customer_reply": "Hello Anna,\n\nThank you for your message about order SO-5005. The order has already been picked up by our carrier, NordFreight, and is on its way, so we can no longer change the delivery address in our system. We are contacting NordFreight to ask them to redirect the delivery to Satamatie 2, Kemi. We will let you know the outcome as soon as we hear back from them. The current promised date is 2026-11-24, and any change to that date will depend on the carrier's response.\n\nKind regards,\nCustomer Support",
-        "confidence": "medium"
-      }
-    },
-    {
-      "kind": "note",
-      "name": "escalated",
-      "detail": {
-        "to": "claude:claude-opus-5-5",
-        "reasons": [
-          "the model's confidence was medium"
-        ]
-      }
-    },
-    {
-      "kind": "tool",
-      "name": "get_order",
-      "detail": {
-        "arguments": {
-          "order_id": "SO-5005"
-        },
-        "result": "{\"order_id\": \"SO-5005\", \"customer_id\": \"C-201\", \"order_date\": \"2026-11-12\", \"status\": \"shipped\", \"lines\": [{\"sku\": \"BOX-A4-200\", \"qty\": 300, \"unit_price_eur\": 0.42}], \"promised_date\": \"2026-11-24\", \"carrier\": \"NordFreight\", \"shipment_id\": \"SH-9005\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Teollisuuskatu 5, Oulu\", \"customer\": {\"id\": \"C-201\", \"name\": \"Pohjola Bakery Ltd\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"standard\"}}",
-        "ok": true
-      }
-    },
-    {
-      "kind": "tool",
-      "name": "search_runbooks",
-      "detail": {
-        "arguments": {
-          "query": "delivery address change"
-        },
-        "result": "[{\"runbook\": \"address-change\", \"score\": 5.98, \"text\": \"# Delivery address change\\n\\nApplies when the customer wants to change where an order is delivered.\\n\\n1. Before pickup: propose `update_delivery_address` (needs approval).\\n2. After pickup (`picked_up` event exists): the address cannot be changed in our system. Propose `contact_carrier` to request a redirect; NordFreight allows redirects while in transit, other carriers do not.\\n3. Confirm the new address with the customer in the reply.\\n\"}, {\"runbook\": \"transport-damage\", \"score\": 0.67, \"text\": \"# Transport damage\\n\\nApplies when goods arrived damaged.\\n\\n1. Check the delivery event note for a damage remark on the proof of delivery (POD). A remark on the POD means the carrier accepted the damage.\\n2. With a POD remark: propose `reship_order` for the damaged quantity (needs approval) and `contact_carrier` to file a claim.\\n3. Without a POD remark: ask the customer for photos within 7 days before proposing a reship.\\n\"}]",
-        "ok": true
-      }
-    },
-    {
-      "kind": "tool",
-      "name": "get_shipment_events",
-      "detail": {
-        "arguments": {
-          "shipment_id": "SH-9005"
-        },
-        "result": "[{\"ts\": \"2026-11-20T08:00\", \"event\": \"picked_up\", \"location\": \"Espoo DC\"}, {\"ts\": \"2026-11-20T21:00\", \"event\": \"in_transit\", \"location\": \"NordFreight linehaul E75\"}]",
-        "ok": true
-      }
-    },
-    {
-      "kind": "tool",
-      "name": "submit_proposal",
-      "detail": {
-        "category": "address_change",
-        "likely_cause": "Customer wants SO-5005 delivered to their new warehouse in Kemi instead of Oulu. The shipment was already picked up, so the address can't be changed in our system. Because NordFreight allows redirects while goods are in transit, a redirect can be requested through the carrier.",
-        "evidence": [
-          "SO-5005: status shipped, delivery_address Teollisuuskatu 5, Oulu, carrier NordFreight, shipment SH-9005, promised 2026-11-24",
-          "SH-9005: picked_up 2026-11-20T08:00 at Espoo DC; in_transit 2026-11-20T21:00 on NordFreight linehaul E75; no delivery event yet",
-          "Runbook address-change step 2: after pickup, propose contact_carrier for a redirect; NordFreight allows redirects while in transit"
-        ],
-        "actions": [
-          {
-            "type": "contact_carrier",
-            "order_id": "SO-5005",
-            "reason": "Shipment SH-9005 already picked up (2026-11-20) and in transit with NordFreight; request redirect from Teollisuuskatu 5, Oulu to Satamatie 2, Kemi per address-change runbook step 2.",
-            "amount_eur": null,
-            "new_address": "Satamatie 2, Kemi"
-          }
-        ],
-        "customer_reply": "Hi Anna,\n\nThanks for letting us know about your new warehouse. Your order SO-5005 was already collected by our carrier, NordFreight, on 20 November and is now on its way to Teollisuuskatu 5, Oulu. Because it has been picked up, we can't change the address in our own system. NordFreight does accept redirect requests for shipments in transit, so we will ask them to redirect it.\n\nPlease confirm that the new delivery address is Satamatie 2, Kemi. We'll let you know whether NordFreight can make the redirect. It may also change the delivery date, which is currently 24 November.\n\nBest regards,\nCustomer Support",
+        "customer_reply": "Hello Anna,\n\nThank you for your message about order SO-5005. The order was picked up by our carrier, NordFreight, on 20 November and is already in transit, so we can no longer change the delivery address in our system. Instead, we will ask NordFreight to redirect the delivery to Satamatie 2, Kemi. We will let you know once the carrier has confirmed whether the redirect is possible. The current promised delivery date is 24 November 2026.\n\nKind regards,\nCustomer Support",
         "confidence": "high"
       }
     }

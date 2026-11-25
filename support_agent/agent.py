@@ -66,10 +66,12 @@ How to work:
   real values. They are the customer's own details, so leave them out of the reply: it goes to
   the customer, who already knows them.
 - Write the reply as plain text, ready to send: no quotation marks around it and no placeholders
-  of your own. Where a date is unknown, give a period such as "within two working days".
+  of your own. Don't invent dates or deadlines: if a date is unknown, say we will let them know
+  when we have it.
 - Every action, even contacting the carrier, is only proposed until a person approves it. In the
-  reply, say what we will look into or are reviewing, never that something is done, flagged or
-  certain, and don't promise anything the tools didn't show you or that isn't among your actions.
+  reply, describe your actions as what we will do or are reviewing ("we will ask the carrier"),
+  never as already underway or done ("we are contacting", "we have flagged"). Don't promise an
+  outcome the tools can't confirm, or anything that isn't among your actions.
 - Finish by calling submit_proposal exactly once.
 """
 
