@@ -57,3 +57,8 @@ button.card.tour:hover { border-color: var(--accent); }
 .live .row { margin-top: 8px; flex-wrap: wrap; }
 input[type=password] { padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
 .notice { border-left: 3px solid var(--accent); padding: 6px 10px; font-size: 14px; }
+button.link { all: unset; cursor: pointer; color: var(--accent); font-size: 14px; display: inline-block; margin-bottom: 10px; }
+button.next { display: block; margin-top: 10px; }
+.attempt h3 { margin-top: 12px; }
+details.step { margin-top: 6px; }
+details.step summary { cursor: pointer; }

@@ -37,7 +37,7 @@ def test_the_tour_step_on_escalation_has_an_escalated_recording():
     from support_agent.api import recorded_escalations
 
     # The page's tour shows the first of these; without one, that step would have nothing to show.
-    assert any(reasons for reasons in recorded_escalations().values())
+    assert any(e["reasons"] for e in recorded_escalations().values())
 
 
 def test_the_tour_step_on_policy_blocks_the_second_credit():
@@ -50,4 +50,21 @@ def test_the_tour_step_on_policy_blocks_the_second_credit():
     assert client.post("/api/tickets/T-1003/approve", json={
         "proposal_id": first["proposal_id"], "action_indexes": credit, "approved_by": "visitor"}).status_code == 200
     second = client.get("/api/tickets/T-1008/recorded").json()
-    assert any("exceeds 25% of the invoice" in v for v in second["policy_violations"])
+    assert any("possible duplicate" in v for v in second["policy_violations"])
+
+
+def test_coming_back_to_a_recorded_ticket_keeps_what_was_approved():
+    from fastapi.testclient import TestClient
+    from support_agent import api
+
+    client = TestClient(api.app)
+    first = client.get("/api/tickets/T-1003/recorded").json()
+    assert client.post("/api/tickets/T-1003/approve", json={
+        "proposal_id": first["proposal_id"], "action_indexes": [0], "approved_by": "visitor"}).status_code == 200
+    client.get("/api/tickets/T-1008/recorded")
+    again = client.get("/api/tickets/T-1003/recorded").json()
+    assert again["proposal_id"] == first["proposal_id"] and again["applied"] == [0]
+    assert again["policy_violations"] == []  # its own credit doesn't count against it
+    r = client.post("/api/tickets/T-1003/approve", json={
+        "proposal_id": again["proposal_id"], "action_indexes": [0], "approved_by": "visitor"})
+    assert r.status_code == 409  # applied once only

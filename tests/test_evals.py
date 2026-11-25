@@ -91,3 +91,26 @@ def test_a_wrong_working_day_count_fails_the_case():
     assert run_evals.score(case, result)["working_days"] is False
     result.proposal.likely_cause = "Held at the hub; 9 working days late. No credit below 10 working days late."
     assert run_evals.score(case, result)["working_days"] is True  # a quoted threshold is not the delay
+
+
+def test_after_escalation_only_the_strong_models_lookups_count():
+    from support_agent.agent import TraceStep
+
+    ticket = {t["id"]: t for t in load_tickets()}["T-1001"]
+    script = [[("get_order", {"order_id": "SO-5001"})], [("submit_proposal", proposal())]]
+    result = anyio.run(lambda: triage(ticket, ScriptedProvider(script), ERP()))
+    case = {"category": "carrier_delay", "must_call": ["get_order"], "order": "SO-5001"}
+    assert run_evals.score(case, result)["tools"]
+    # Same lookups, but made by the first model before an escalation: they don't count.
+    result.trace.insert(len(result.trace) - 1, TraceStep("note", "escalated", {"to": "strong"}))
+    checks = run_evals.score(case, result)
+    assert not checks["tools"] and not checks["looked_up_order"]
+
+
+def test_the_delay_check_ignores_case_and_reads_action_reasons():
+    ticket = {t["id"]: t for t in load_tickets()}["T-1001"]
+    script = [[("get_order", {"order_id": "SO-5001"})], [("submit_proposal", proposal(actions=[
+        {"type": "contact_carrier", "order_id": "SO-5001", "reason": "Now 11 Working Days Late.",
+         "amount_eur": None, "new_address": None}]))]]
+    result = anyio.run(lambda: triage(ticket, ScriptedProvider(script), ERP()))
+    assert run_evals.score({"category": "carrier_delay", "working_days_late": 9}, result)["working_days"] is False

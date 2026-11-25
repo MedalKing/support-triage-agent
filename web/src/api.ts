@@ -1,4 +1,4 @@
-export type Ticket = { id: string; customer_id: string; subject: string; body: string; triaged: boolean };
+export type Ticket = { id: string; customer_id: string; subject: string; body: string };
 export type Action = {
   type: string;
   order_id: string;
@@ -44,7 +44,8 @@ export type Config = {
   providers: string[];
   access_code_required: boolean;
   recorded: string[];
-  escalated: Record<string, string[]>; // recorded runs redone by the stronger model, with reasons
+  // Recorded runs redone by the stronger model: why, and whether it proposed different actions.
+  escalated: Record<string, { reasons: string[]; changed: boolean }>;
 };
 
 async function call<T>(path: string, init?: RequestInit, headers: Record<string, string> = {}): Promise<T> {

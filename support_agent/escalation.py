@@ -37,7 +37,8 @@ CORRECTION_NOTES = {
 def escalation_reasons(result: TriageResult) -> list[str]:
     """Why this run should be redone by the stronger model. Empty means the run stands."""
     if result.proposal is None:
-        return [f"no proposal: {result.error or 'unknown error'}"]
+        error = (result.error or "unknown error").rstrip(".")
+        return [f"it gave no usable proposal ({error[0].lower()}{error[1:]})"]
     reasons = []
     if result.policy_violations:
         reasons.append("the proposal breaks policy")
@@ -47,7 +48,7 @@ def escalation_reasons(result: TriageResult) -> list[str]:
         reasons.append("no runbook category fits")
     types = {a.type for a in result.proposal.actions}
     if "no_action" in types and len(types) > 1:
-        reasons.append("the proposal mixes no_action with real actions")
+        reasons.append("it proposed taking no action and real actions at the same time")
     corrected = sorted({CORRECTION_NOTES[s.name] for s in result.trace if s.kind == "note" and s.name in CORRECTION_NOTES})
     if corrected:
         reasons.append("the model had to be corrected (" + "; ".join(corrected) + ")")
@@ -86,6 +87,13 @@ async def triage_with_escalation(
         TraceStep("note", "escalated", {"to": second.provider, "reasons": reasons})]
     second.model_inputs[:0] = first_inputs  # both models' inputs count for the privacy check
     return second
+
+
+def final_attempt(trace: list[TraceStep]) -> list[TraceStep]:
+    """The steps of the model that made the final proposal: after an escalation, the strong
+    model's own steps only, so its proposal can't lean on lookups the first model made."""
+    marks = [i for i, s in enumerate(trace) if s.kind == "note" and s.name == "escalated"]
+    return trace[marks[-1] + 1:] if marks else trace
 
 
 def auto_label() -> str:

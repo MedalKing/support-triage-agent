@@ -1,5 +1,5 @@
 {
-  "provider": "claude:claude-opus-5-5",
+  "provider": "claude:claude-haiku-5-5",
   "as_of": "2026-11-23",
   "passed": 8,
   "escalated": 0,
@@ -22,9 +22,7 @@
       },
       "proposed": {
         "category": "carrier_delay",
-        "stated_delay": [
-          "9"
-        ],
+        "stated_delay": [],
         "actions": [
           {
             "type": "contact_carrier",
@@ -177,7 +175,7 @@
         "actions": [
           {
             "type": "no_action",
-            "order_id": "SO-5006",
+            "order_id": "SO-5060",
             "amount_eur": null
           }
         ]
@@ -202,6 +200,8 @@
       "proposed": {
         "category": "carrier_delay",
         "stated_delay": [
+          "9",
+          "9",
           "9"
         ],
         "actions": [

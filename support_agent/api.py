@@ -121,14 +121,22 @@ def check_access_code(code: str | None) -> None:
 
 # --- endpoints -----------------------------------------------------------------------
 
-def recorded_escalations() -> dict[str, list[str]]:
-    """Which recorded runs were redone by the stronger model, and why. The page's tour uses it,
-    so it always points at a run that really escalated, whichever that was when recorded."""
+def recorded_escalations() -> dict[str, dict[str, Any]]:
+    """Which recorded runs were redone by the stronger model, why, and whether the second
+    model proposed different actions. The page's tour uses it, so it always points at a run
+    that really escalated, whichever that was when recorded."""
     out = {}
     for path in sorted(RECORDED_DIR.glob("*.json")):
-        escalation = json.loads(path.read_text(encoding="utf-8")).get("escalation")
-        if escalation:
-            out[path.stem] = escalation["reasons"]
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        if not saved.get("escalation"):
+            continue
+        names = [s["name"] for s in saved["trace"]]
+        before = saved["trace"][:names.index("escalated")] if "escalated" in names else []
+        first = next((s["detail"] for s in before if s["name"] == "submit_proposal"), None)
+        final = saved["proposal"]
+        actions = lambda p: sorted((a["type"], a["order_id"]) for a in p["actions"]) if p else None  # noqa: E731
+        out[path.stem] = {"reasons": saved["escalation"]["reasons"],
+                          "changed": actions(first) != actions(final)}
     return out
 
 
@@ -144,7 +152,7 @@ def config() -> dict[str, Any]:
 
 @app.get("/api/tickets")
 def list_tickets(s: Session = Depends(session)) -> list[dict[str, Any]]:
-    return [{**t, "triaged": t["id"] in s.results} for t in tickets.values()]
+    return list(tickets.values())
 
 
 @app.post("/api/tickets/{ticket_id}/triage")
@@ -159,12 +167,15 @@ async def live_triage(ticket_id: str, request: Request, provider: str | None = N
         raise HTTPException(400, f"provider {name!r} is not offered here; use one of {providers_offered()}")
     check_access_code(x_access_code)
     limiter.check(visitor_id(request))
+    erp = s.erp
     try:
-        result = await run_triage(ticket, s.erp, name)
+        result = await run_triage(ticket, erp, name)
     except ProviderError as e:
         raise HTTPException(502, str(e)) from e
     except ValueError as e:  # unknown provider or a bad AGENT_TODAY
         raise HTTPException(400, str(e)) from e
+    if s.erp is not erp:  # the visitor pressed Start over while the run was going
+        raise HTTPException(409, "The demo was reset while this ran. Run it again.")
     s.results[ticket_id] = result
     return result.to_dict()
 
@@ -176,6 +187,12 @@ def recorded_triage(ticket_id: str, s: Session = Depends(session)) -> dict[str, 
     path = RECORDED_DIR / f"{ticket_id}.json"
     if ticket is None or not path.exists():
         raise HTTPException(404, "no recorded run for this ticket")
+    result = s.results.get(ticket_id)
+    if result is not None and result.recorded and result.proposal is not None:
+        # Coming back to a ticket keeps what was approved on it; only the policy check is
+        # redone, since approvals on other tickets may have changed the answer.
+        result.policy_violations = check_policy(result.proposal, ticket["customer_id"], s.erp, result.proposal_id)
+        return result.to_dict()
     result = load_recorded(ticket, json.loads(path.read_text(encoding="utf-8")), s.erp)
     s.results[ticket_id] = result
     return result.to_dict()

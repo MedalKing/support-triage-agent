@@ -111,7 +111,8 @@ def reply_problems(reply: str) -> list[str]:
 
     A placeholder in the reply is either the customer's own contact detail (they don't need it,
     and offering it as ours is wrong) or one the model made up. A stray quotation mark is an
-    artefact of the model wrapping its answer in quotes.
+    artefact of the model wrapping its answer in quotes. Both rules are deliberately blunt: an
+    inch mark (12" boxes) or a bracketed word would also be sent back once, which is cheap.
     """
     problems = []
     tags = sorted(set(PLACEHOLDER.findall(reply)))
@@ -181,8 +182,16 @@ def check_policy(proposal: Proposal, ticket_customer_id: str, erp: Any, proposal
                 stock = erp.get_stock(line["sku"])
                 if not stock or stock["on_hand"] <= 0:
                     problems.append(f"reship_order: {line['sku']} is out of stock; the remainder is a backorder")
-    # The cap is per order, so splitting a credit into several actions doesn't get around it.
     for order_id, proposed in credits.items():
+        # A credit on an invoice that already got one from another ticket may be the same
+        # complaint twice. That is a manager's call, whatever the amounts.
+        earlier_entries = erp.approved_credits(order_id, except_proposal=proposal_id)
+        if earlier_entries:
+            done = ", ".join(f"{e['amount_eur']:.2f} EUR on {e['ticket_id']}" for e in earlier_entries)
+            problems.append(f"issue_credit: possible duplicate, {order_id} already has an approved credit "
+                            f"({done}); a second credit needs a manager")
+            continue
+        # The cap is per order, so splitting a credit into several actions doesn't get around it.
         invoice = erp.get_order(order_id)["invoice_total_eur"]
         earlier = erp.approved_credit_eur(order_id, except_proposal=proposal_id)
         # Compare in whole cents so float rounding can't nudge an amount past the cap.

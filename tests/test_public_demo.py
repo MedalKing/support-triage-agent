@@ -46,7 +46,7 @@ def test_a_clear_ticket_stays_with_the_fast_model():
     ({"actions": [{"type": "contact_carrier", "order_id": "SO-5001", "reason": "x", "amount_eur": None,
                    "new_address": None},
                   {"type": "no_action", "order_id": "SO-5005", "reason": "x", "amount_eur": None,
-                   "new_address": None}]}, "mixes no_action"),
+                   "new_address": None}]}, "no action and real actions"),
     ({"actions": [{"type": "issue_credit", "order_id": "SO-5001", "reason": "x", "amount_eur": 9999.0,
                    "new_address": None}]}, "breaks policy"),
 ])
@@ -68,7 +68,7 @@ def test_no_proposal_is_escalated():
         p = ScriptedProvider([LOOKUP])  # never submits
         p.name = "fast"
         return p
-    assert escalate(gives_up).escalation["reasons"][0].startswith("no proposal")
+    assert escalate(gives_up).escalation["reasons"][0].startswith("it gave no usable proposal")
 
 
 def test_a_failing_fast_model_is_escalated():
@@ -170,3 +170,15 @@ def test_reset_starts_the_visitors_demo_over(client, tmp_path):
     r = client.post("/api/tickets/T-1001/approve",
                     json={"proposal_id": body["proposal_id"], "action_indexes": [0], "approved_by": "visitor"})
     assert r.status_code == 409  # the old proposal is gone with the session's state
+
+
+def test_a_run_that_ends_after_start_over_is_not_stored(client, monkeypatch):
+    async def reset_meanwhile(ticket, erp, provider=None, **kwargs):
+        result = await triage(ticket, scripted("fast", {})(), erp)
+        for s in api.sessions.values():  # the visitor presses Start over while the model works
+            s.erp, s.results = ERP(), {}
+        return result
+    monkeypatch.setattr(api, "run_triage", reset_meanwhile)
+    assert client.post("/api/tickets/T-1001/triage").status_code == 409
+    assert client.post("/api/tickets/T-1001/approve", json={
+        "proposal_id": "x", "action_indexes": [0], "approved_by": "v"}).status_code == 409  # nothing stored

@@ -4,8 +4,8 @@ import {
 } from "./api";
 
 const PROVIDER_LABELS: Record<string, string> = {
-  auto: "Claude Haiku, escalating to Opus when unclear",
-  claude: "Claude Opus only",
+  auto: "Claude Haiku, escalating to Opus when code sees trouble",
+  claude: "Claude, one model",
   ollama: "Local model (Ollama)",
 };
 
@@ -18,7 +18,7 @@ const SCENARIOS: Record<string, string> = {
   "T-1005": "address change",
   "T-1006": "order that doesn't exist",
   "T-1007": "prompt injection",
-  "T-1008": "bank details + credit cap",
+  "T-1008": "bank details + second credit",
 };
 
 type TourStep = { ticket: string; title: string; text: string };
@@ -32,24 +32,37 @@ const TOUR: TourStep[] = [
   {
     ticket: "T-1003",
     title: "Policy runs in code, not in the prompt",
-    text: "Approve the 60 € credit on T-1003. Then open T-1008, a second ticket about the same invoice: code blocks a second credit, whatever the model says.",
+    text: "Approve the 60 € credit on T-1003, then open T-1008, a second email about the same invoice. Code blocks the second credit and asks for a manager, whatever the model says.",
   },
 ];
+const TOUR_TICKETS = new Set(["T-1003", "T-1007", "T-1008"]);
 
-// The escalation step points at whichever recorded run really escalated.
+// "claude:claude-haiku-5-5" -> "Claude Haiku 5.5"
+function modelName(provider: string): string {
+  const id = provider.split(":").pop() ?? provider;
+  const m = id.match(/^claude-([a-z]+)-(\d+)-(\d+)$/);
+  if (!m) return id;
+  return `Claude ${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}.${m[3]}`;
+}
+
+// The escalation step points at a recorded run that really escalated, preferring one where
+// the stronger model changed the proposed actions and the reason is easy to follow, and not
+// one of the tour's own tickets.
+const score = (e: { reasons: string[]; changed: boolean }) =>
+  2 * Number(e.changed) + Number(e.reasons.some((r) => r.includes("confidence")));
+
 function escalationStep(config: Config | null): TourStep | null {
-  // A low-confidence escalation is the easiest one to follow, so it goes first.
-  const entries = Object.entries(config?.escalated ?? {}).sort(
-    ([, a], [, b]) => Number(!a.join().includes("confidence")) - Number(!b.join().includes("confidence")),
-  );
-  const [ticket, reasons] = entries[0] ?? [];
+  const entries = Object.entries(config?.escalated ?? {})
+    .filter(([id]) => !TOUR_TICKETS.has(id))
+    .sort(([, a], [, b]) => score(b) - score(a));
+  const [ticket, e] = entries[0] ?? [];
   if (!ticket) return null;
   return {
     ticket,
-    title: "A cheap model first, a strong one when it's unsure",
-    text: `Claude Haiku handles each ticket first. On this one Claude Opus redid the run, because ${reasons.join(
-      "; ",
-    )}. The first attempt is in the trace.`,
+    title: "A cheap model first, a stronger one when code sees trouble",
+    text: `Claude Haiku handles each ticket first. On this one, code saw that ${e.reasons.join("; ")}, so Claude Opus redid the run${
+      e.changed ? " and proposed different actions" : ""
+    }. The trace shows both attempts.`,
   };
 }
 
@@ -95,13 +108,16 @@ export default function App() {
     }
   }
 
-  function pick(t: Ticket, showRecorded = false) {
+  function open(id: string) {
+    const t = tickets.find((x) => x.id === id);
+    if (!t) return;
     current.current = t.id;
     setSelected(t);
     setResult(null);
     setChecked([]);
     setMessage(null);
-    if (showRecorded) run(false, t);
+    window.scrollTo(0, 0);
+    if (config?.recorded.includes(t.id)) run(false, t);
   }
 
   async function run(live: boolean, ticket: Ticket | null = selected) {
@@ -113,12 +129,16 @@ export default function App() {
       const r = live ? await triage(ticketId, provider, accessCode) : await recorded(ticketId);
       if (current.current !== ticketId) return;
       setResult(r);
-      // Pre-tick only actions that change nothing for the customer; never no_action.
-      setChecked(r.proposal?.actions.flatMap((a, i) => (a.needs_approval || a.type === "no_action" ? [] : [i])) ?? []);
+      // Pre-tick only actions that change nothing for the customer and aren't applied yet.
+      setChecked(
+        r.proposal?.actions.flatMap((a, i) =>
+          a.needs_approval || a.type === "no_action" || r.applied.includes(i) ? [] : [i],
+        ) ?? [],
+      );
     } catch (e) {
       if (current.current === ticketId) setMessage(String(e));
     } finally {
-      setBusy(false);
+      if (current.current === ticketId) setBusy(false);
     }
   }
 
@@ -132,15 +152,11 @@ export default function App() {
       if (current.current !== ticketId) return;
       setResult({ ...result, applied: [...result.applied, ...checked] });
       setChecked([]);
-      const credit = r.applied.some((a) => a.type === "issue_credit");
-      setMessage(
-        `Approved ${r.applied.length} action(s); see the audit log.` +
-          (credit && ticketId === "T-1003" ? " Now open T-1008: it asks for the same refund on the same invoice." : ""),
-      );
+      setMessage(`Approved ${r.applied.length} action(s); see the audit log.`);
     } catch (e) {
       if (current.current === ticketId) setMessage(String(e));
     } finally {
-      setBusy(false);
+      if (current.current === ticketId) setBusy(false);
     }
   }
 
@@ -150,17 +166,30 @@ export default function App() {
     setResult(null);
     setChecked([]);
     setMessage(null);
+    setBusy(false);
   }
 
   async function startOver() {
-    await reset();
-    setAudit([]);
-    goHome();
+    try {
+      await reset();
+      setAudit([]);
+      goHome();
+    } catch (e) {
+      setMessage(`Could not start over: ${e}`);
+    }
   }
 
   const blocked = (result?.policy_violations.length ?? 0) > 0;
-  const hasRecording = !!selected && !!config?.recorded.includes(selected.id);
-  const byId = (id: string) => tickets.find((t) => t.id === id);
+  const escalation = escalationStep(config);
+  const tour = [...TOUR, ...(escalation ? [escalation] : [])];
+  const creditApproved = !!result?.proposal?.actions.some((a, i) => a.type === "issue_credit" && result.applied.includes(i));
+  // The next step of the tour, offered where the visitor is.
+  const next =
+    selected?.id === "T-1003" && creditApproved
+      ? { id: "T-1008", label: "Next: open T-1008, the same refund asked for again →" }
+      : selected?.id === "T-1008" && blocked && escalation
+        ? { id: escalation.ticket, label: `Next: a run Claude Opus redid (${escalation.ticket}) →` }
+        : null;
 
   return (
     <div className="layout">
@@ -170,9 +199,9 @@ export default function App() {
             Support triage agent
           </button>
         </h1>
-        <p className="muted small">Sample tickets to a made-up packaging company.</p>
+        <p className="muted small">Sample emails to a made-up packaging company.</p>
         {tickets.map((t) => (
-          <button key={t.id} className={selected?.id === t.id ? "ticket active" : "ticket"} onClick={() => pick(t, true)}>
+          <button key={t.id} className={selected?.id === t.id ? "ticket active" : "ticket"} onClick={() => open(t.id)}>
             <span className="id">
               {t.id}{" "}
               <span className="scenario">
@@ -196,7 +225,7 @@ export default function App() {
           {audit.length > 0 && (
             <p className="muted small">The order system is simulated: actions are logged, only address changes edit the order.</p>
           )}
-          <button className="secondary" onClick={startOver}>
+          <button className="secondary" onClick={startOver} disabled={busy}>
             Start over
           </button>
         </section>
@@ -221,8 +250,8 @@ export default function App() {
               </ol>
             </section>
             <h3>Try this (3 minutes)</h3>
-            {[...TOUR, escalationStep(config)].filter((s): s is TourStep => !!s).map((step, i) => (
-              <button key={step.ticket} className="card tour" onClick={() => byId(step.ticket) && pick(byId(step.ticket)!, true)}>
+            {tour.map((step, i) => (
+              <button key={step.ticket} className="card tour" onClick={() => open(step.ticket)}>
                 <span className="step-no">{i + 1}</span>
                 <strong>
                   {step.title} <span className="muted">· {step.ticket}</span>
@@ -238,16 +267,18 @@ export default function App() {
         )}
         {selected && (
           <>
+            <button className="link" onClick={goHome}>
+              ← Back to the tour
+            </button>
             <section className="card">
               <h2>{selected.subject}</h2>
               <p className="muted">
                 {selected.id} · customer {selected.customer_id} · {SCENARIOS[selected.id]}
               </p>
               <p className="ticket-body">{selected.body}</p>
-              {hasRecording && !result && (
-                <button onClick={() => run(false)} disabled={busy}>
-                  Show the agent's run
-                </button>
+              {busy && !result && <p className="muted">Loading…</p>}
+              {!busy && !result && message && (
+                <button onClick={() => run(false)}>Try again</button>
               )}
               <details className="live">
                 <summary>Run it live instead</summary>
@@ -290,12 +321,12 @@ export default function App() {
                   </span>
                 </h2>
                 <p className="muted">
-                  {result.recorded ? "Recorded run" : "Live run"} by {result.provider}
+                  {result.recorded ? "Recorded run" : "Live run"} by {modelName(result.provider)}
                 </p>
                 {result.escalation && (
                   <div className="escalation">
-                    Escalated from {result.escalation.from} to {result.escalation.to}, because{" "}
-                    {result.escalation.reasons.join("; ")}. The first attempt is in the trace below.
+                    Redone by {modelName(result.escalation.to)} after {modelName(result.escalation.from)}, because{" "}
+                    {result.escalation.reasons.join("; ")}. The trace below shows both attempts.
                   </div>
                 )}
                 <p>{result.proposal.likely_cause}</p>
@@ -334,7 +365,9 @@ export default function App() {
                     <strong>{a.type}</strong> on {a.order_id}
                     {a.amount_eur != null && <> · {a.amount_eur.toFixed(2)} €</>}
                     {a.new_address && <> · to {a.new_address}</>}
-                    {a.needs_approval && !blocked && !result.applied.includes(i) && <span className="tag warn">tick to approve</span>}
+                    {a.needs_approval && !blocked && !result.applied.includes(i) && (
+                      <span className="tag warn">tick to approve</span>
+                    )}
                     {result.applied.includes(i) && <span className="tag">applied</span>}
                     <div className="muted">Agent's reason: {a.reason}</div>
                     {a.approval_reason && <div className="why">What to check: {a.approval_reason}</div>}
@@ -344,9 +377,23 @@ export default function App() {
                   Approve selected
                 </button>
                 {message && <p className="notice">{message}</p>}
+                {next && (
+                  <button className="next" onClick={() => open(next.id)}>
+                    {next.label}
+                  </button>
+                )}
 
                 <h3>Draft reply</h3>
-                <pre className="reply">{result.proposal.customer_reply}</pre>
+                {blocked ? (
+                  <details>
+                    <summary className="muted">
+                      Held back: a manager must decide on the blocked action before anyone replies. Show the draft
+                    </summary>
+                    <pre className="reply">{result.proposal.customer_reply}</pre>
+                  </details>
+                ) : (
+                  <pre className="reply">{result.proposal.customer_reply}</pre>
+                )}
                 {result.redactions.length > 0 && (
                   <p className="muted small">
                     Hidden from the model: {result.redactions.join(", ")}. The model worked with these placeholders only;
@@ -356,22 +403,46 @@ export default function App() {
               </section>
             )}
 
-            {result && (
-              <details className="card">
-                <summary>
-                  What the agent did ({result.trace.length} steps, {result.provider})
-                </summary>
-                {result.trace.map((s, i) => (
-                  <Step key={i} step={s} />
-                ))}
-              </details>
-            )}
+            {result && <Trace result={result} />}
 
             {message && !result?.proposal && <p className="muted">{message}</p>}
           </>
         )}
       </main>
     </div>
+  );
+}
+
+// The trace, split into attempts when a run was escalated.
+function Trace({ result }: { result: TriageResult }) {
+  const attempts: { title: string; steps: TraceStep[] }[] = [];
+  let steps: TraceStep[] = [];
+  let title = result.escalation ? `Attempt 1: ${modelName(result.escalation.from)}` : modelName(result.provider);
+  for (const s of result.trace) {
+    if (s.kind === "note" && s.name === "first_attempt") continue;
+    if (s.kind === "note" && s.name === "escalated") {
+      attempts.push({ title, steps });
+      steps = [];
+      title = `Attempt 2: ${modelName(result.provider)}`;
+      continue;
+    }
+    steps.push(s);
+  }
+  attempts.push({ title, steps });
+  return (
+    <details className="card">
+      <summary>
+        What the agent did ({result.trace.length} steps{result.escalation ? ", two attempts" : ""})
+      </summary>
+      {attempts.map((a, i) => (
+        <section key={i} className="attempt">
+          <h3>{a.title}</h3>
+          {a.steps.map((s, j) => (
+            <Step key={j} step={s} />
+          ))}
+        </section>
+      ))}
+    </details>
   );
 }
 
@@ -389,18 +460,25 @@ function pretty(value: unknown): string {
 function Step({ step }: { step: TraceStep }) {
   const d = step.detail as { arguments?: unknown; result?: unknown; ok?: boolean } | string;
   const isCall = step.kind === "tool" && typeof d === "object" && d !== null && "result" in d;
-  return (
-    <div className="step">
-      <span className="tag">{step.kind}</span> <strong>{step.name}</strong>
-      {isCall ? (
-        <>
-          <span className="muted small"> {JSON.stringify(d.arguments)}</span>
+  if (isCall) {
+    return (
+      <details className="step">
+        <summary>
+          <span className="tag">lookup</span> <strong>{step.name}</strong>{" "}
+          <span className="muted small">{JSON.stringify(d.arguments)}</span>
           {d.ok === false && <span className="tag warn">no data</span>}
-          <pre>{pretty(d.result)}</pre>
-        </>
-      ) : (
-        <pre>{pretty(d)}</pre>
-      )}
-    </div>
+        </summary>
+        <pre>{pretty(d.result)}</pre>
+      </details>
+    );
+  }
+  const label = step.kind === "tool" ? "proposal" : step.kind;
+  return (
+    <details className="step" open={step.kind === "note"}>
+      <summary>
+        <span className="tag">{label}</span> <strong>{step.name}</strong>
+      </summary>
+      <pre>{pretty(d)}</pre>
+    </details>
   );
 }

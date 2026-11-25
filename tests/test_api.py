@@ -94,6 +94,20 @@ def test_unknown_provider_is_a_client_error(client):
     assert client.post("/api/tickets/T-1003/triage?provider=gpt").status_code == 400
 
 
+def test_a_second_credit_on_an_invoice_needs_a_manager_even_when_small(client, monkeypatch):
+    # Within the cap together (20 + 20 of 117.50 EUR), but it may be the same complaint twice.
+    body = triage(client, monkeypatch, {**CREDIT, "amount_eur": 20.0})
+    assert approve(client, body["proposal_id"], [0]).status_code == 200
+    use_script(monkeypatch, [[("get_order", {"order_id": "SO-5003"})],
+                             [("submit_proposal", proposal(category="pricing_error",
+                                                           actions=[{**CREDIT, "amount_eur": 20.0}]))]])
+    second = client.post("/api/tickets/T-1008/triage").json()
+    assert any("possible duplicate" in v for v in second["policy_violations"])
+    # The agent could see it coming: the lookup shows the credit already approved.
+    seen = [s["detail"]["result"] for s in second["trace"] if s["name"] == "get_order"]
+    assert '"approved_credits": [{"ticket_id": "T-1003", "amount_eur": 20.0}]' in seen[0]
+
+
 def test_credit_cap_counts_credits_approved_on_other_tickets(client, monkeypatch):
     # T-1003 and T-1008 are about the same invoice (470 EUR, cap 117.50 EUR).
     body = triage(client, monkeypatch, {**CREDIT, "amount_eur": 100.0})
@@ -102,7 +116,7 @@ def test_credit_cap_counts_credits_approved_on_other_tickets(client, monkeypatch
               [("submit_proposal", proposal(category="pricing_error", actions=[{**CREDIT, "amount_eur": 60.0}]))]]
     use_script(monkeypatch, script)
     second = client.post("/api/tickets/T-1008/triage").json()
-    assert any("already approved" in v for v in second["policy_violations"])
+    assert any("possible duplicate" in v and "100.00 EUR on T-1003" in v for v in second["policy_violations"])
     r = client.post("/api/tickets/T-1008/approve",
                     json={"proposal_id": second["proposal_id"], "action_indexes": [0], "approved_by": "reviewer"})
     assert r.status_code == 422

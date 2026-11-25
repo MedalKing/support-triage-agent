@@ -2,7 +2,7 @@
   "provider": "auto:claude-haiku-5-5->claude-opus-5-5",
   "as_of": "2026-11-23",
   "passed": 8,
-  "escalated": 2,
+  "escalated": 1,
   "total": 8,
   "cases": [
     {
@@ -22,9 +22,7 @@
       },
       "proposed": {
         "category": "carrier_delay",
-        "stated_delay": [
-          "9"
-        ],
+        "stated_delay": [],
         "actions": [
           {
             "type": "contact_carrier",
@@ -42,7 +40,7 @@
         "from": "claude:claude-haiku-5-5",
         "to": "claude:claude-opus-5-5",
         "reasons": [
-          "the proposal mixes no_action with real actions"
+          "the model had to be corrected (a proposal that broke the schema)"
         ]
       },
       "error": null
@@ -208,6 +206,7 @@
       "proposed": {
         "category": "carrier_delay",
         "stated_delay": [
+          "9",
           "9"
         ],
         "actions": [
@@ -223,13 +222,7 @@
           }
         ]
       },
-      "escalation": {
-        "from": "claude:claude-haiku-5-5",
-        "to": "claude:claude-opus-5-5",
-        "reasons": [
-          "the proposal mixes no_action with real actions"
-        ]
-      },
+      "escalation": null,
       "error": null
     },
     {
