@@ -1,5 +1,7 @@
 # Support triage agent
 
+**Live demo:** https://support-triage-demo.calmdesert-2585d0f9.swedencentral.azurecontainerapps.io/ (recorded runs are open to everyone; live runs need the access code given in the application). Runs on Azure Container Apps and scales to zero, so the first request after a quiet spell takes a few seconds.
+
 ## In plain terms
 
 A packaging company's customer service gets emails like *"Your invoice charges 2.35 EUR per box but we were quoted 2.05."* Answering one means looking up the order and the price that applied, then deciding what to do.
