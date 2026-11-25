@@ -1,10 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { approve, listTickets, triage, Ticket, TriageResult } from "./api";
+import { approve, Config, getConfig, listTickets, recorded, triage, Ticket, TriageResult } from "./api";
+
+const PROVIDER_LABELS: Record<string, string> = {
+  auto: "Claude Haiku, escalating to Opus when unclear",
+  claude: "Claude Opus only",
+  ollama: "Local model (Ollama)",
+};
+
+function loadCode(): string {
+  try {
+    return localStorage.getItem("accessCode") ?? "";
+  } catch {
+    return "";
+  }
+}
 
 export default function App() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
-  const [provider, setProvider] = useState("claude");
+  const [config, setConfig] = useState<Config | null>(null);
+  const [provider, setProvider] = useState("auto");
+  const [accessCode, setAccessCode] = useState(loadCode);
   const [result, setResult] = useState<TriageResult | null>(null);
   const [checked, setChecked] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
@@ -14,7 +30,22 @@ export default function App() {
 
   useEffect(() => {
     listTickets().then(setTickets).catch((e) => setMessage(String(e)));
+    getConfig()
+      .then((c) => {
+        setConfig(c);
+        if (c.providers.length) setProvider(c.providers[0]);
+      })
+      .catch((e) => setMessage(String(e)));
   }, []);
+
+  function saveCode(code: string) {
+    setAccessCode(code);
+    try {
+      localStorage.setItem("accessCode", code);
+    } catch {
+      /* private window: the code is kept for this page only */
+    }
+  }
 
   function pick(t: Ticket) {
     current.current = t.id;
@@ -24,13 +55,13 @@ export default function App() {
     setMessage(null);
   }
 
-  async function run() {
+  async function run(live: boolean) {
     if (!selected) return;
     setBusy(true);
     setMessage(null);
     const ticketId = selected.id;
     try {
-      const r = await triage(ticketId, provider);
+      const r = live ? await triage(ticketId, provider, accessCode) : await recorded(ticketId);
       if (current.current !== ticketId) return;
       setResult(r);
       // Pre-tick only actions that change nothing for the customer; never no_action.
@@ -63,6 +94,7 @@ export default function App() {
   }
 
   const blocked = (result?.policy_violations.length ?? 0) > 0;
+  const hasRecording = !!selected && !!config?.recorded.includes(selected.id);
 
   return (
     <div className="layout">
@@ -86,15 +118,38 @@ export default function App() {
                 {selected.id} · customer {selected.customer_id}
               </p>
               <p>{selected.body}</p>
+              {hasRecording && (
+                <div className="row">
+                  <button onClick={() => run(false)} disabled={busy}>
+                    Show recorded run
+                  </button>
+                  <span className="muted">Instant: a saved run of the agent on this ticket.</span>
+                </div>
+              )}
               <div className="row">
                 <select value={provider} onChange={(e) => setProvider(e.target.value)}>
-                  <option value="claude">Claude</option>
-                  <option value="ollama">Local model (Ollama)</option>
+                  {(config?.providers ?? ["auto"]).map((p) => (
+                    <option key={p} value={p}>
+                      {PROVIDER_LABELS[p] ?? p}
+                    </option>
+                  ))}
                 </select>
-                <button onClick={run} disabled={busy}>
-                  {busy ? "Investigating…" : "Run agent"}
+                {config?.access_code_required && (
+                  <input
+                    type="password"
+                    placeholder="Access code"
+                    value={accessCode}
+                    onChange={(e) => saveCode(e.target.value)}
+                    aria-label="Access code for live runs"
+                  />
+                )}
+                <button onClick={() => run(true)} disabled={busy}>
+                  {busy ? "Investigating…" : "Run live"}
                 </button>
               </div>
+              {config?.access_code_required && (
+                <p className="muted">Live runs call the model and take 20–60 seconds. They need the access code from the application.</p>
+              )}
             </section>
 
             {result?.error && <p className="error">{result.error}</p>}
@@ -105,6 +160,15 @@ export default function App() {
                   Proposal <span className="tag">{result.proposal.category}</span>{" "}
                   <span className="tag">confidence {result.proposal.confidence}</span>
                 </h2>
+                <p className="muted">
+                  {result.recorded ? "Recorded run" : "Live run"} by {result.provider}
+                </p>
+                {result.escalation && (
+                  <div className="escalation">
+                    Escalated from {result.escalation.from} to {result.escalation.to}, because{" "}
+                    {result.escalation.reasons.join("; ")}. The first attempt is in the trace below.
+                  </div>
+                )}
                 <p>{result.proposal.likely_cause}</p>
                 <h3>Evidence</h3>
                 <ul>

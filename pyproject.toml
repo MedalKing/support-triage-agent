@@ -26,7 +26,7 @@ dev = ["pytest>=9"]
 packages = ["support_agent"]
 
 [tool.setuptools.package-data]
-support_agent = ["data/*.json", "data/runbooks/*.md"]
+support_agent = ["data/*.json", "data/runbooks/*.md", "data/recorded/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

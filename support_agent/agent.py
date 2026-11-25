@@ -67,6 +67,12 @@ How to work:
 """
 
 
+def ticket_message(ticket: dict[str, Any]) -> str:
+    """The first message the model gets, before redaction."""
+    return (f"Ticket {ticket['id']} from customer {ticket['customer_id']}\n"
+            f"Subject: {ticket['subject']}\n\n{ticket['body']}")
+
+
 def load_tickets() -> list[dict[str, Any]]:
     return json.loads(TICKETS_FILE.read_text(encoding="utf-8"))
 
@@ -91,6 +97,9 @@ class TriageResult:
     # The approval API binds to this id, so a reviewer can only approve the proposal they saw.
     proposal_id: str = field(default_factory=lambda: uuid4().hex)
     applied: set[int] = field(default_factory=set)
+    # Set when a fast model's run was redone by a stronger one: {"from", "to", "reasons"}.
+    escalation: dict[str, Any] | None = None
+    recorded: bool = False  # replayed from a saved run, not run live
 
     def to_dict(self, restore_pii: bool = True) -> dict[str, Any]:
         proposal = None
@@ -106,6 +115,8 @@ class TriageResult:
             "proposal_id": self.proposal_id,
             "applied": sorted(self.applied),
             "provider": self.provider,
+            "escalation": self.escalation,
+            "recorded": self.recorded,
             "proposal": proposal,
             "policy_violations": self.policy_violations,
             "trace": [{"kind": s.kind, "name": s.name, "detail": s.detail} for s in self.trace],
@@ -171,10 +182,7 @@ async def _triage(
         return safe
 
     as_of = as_of or today()
-    user = to_model(
-        f"Ticket {ticket['id']} from customer {ticket['customer_id']}\n"
-        f"Subject: {ticket['subject']}\n\n{ticket['body']}"
-    )
+    user = to_model(ticket_message(ticket))
     result = TriageResult(ticket["id"], provider.name, None, [], trace, redactor, model_inputs)
 
     async with connect_erp(erp, transport, ticket["customer_id"]) as mcp:

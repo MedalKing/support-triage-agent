@@ -33,3 +33,4 @@ pre { white-space: pre-wrap; font-size: 13px; margin: 4px 0; }
 .reply { background: var(--bg); padding: 10px; border-radius: 6px; }
 .step { margin-top: 10px; }
 @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } aside { border-right: none; border-bottom: 1px solid var(--line); } }
+.escalation { border: 1px solid var(--warn); border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 14px; }

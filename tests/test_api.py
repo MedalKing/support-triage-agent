@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import support_agent.api as api
-from support_agent.erp import ERP
+from support_agent.agent import triage as agent_triage
 from scripted import ScriptedProvider
 from test_agent import proposal
 
@@ -12,10 +12,18 @@ CREDIT = {"type": "issue_credit", "order_id": "SO-5003", "reason": "expired pric
 
 @pytest.fixture
 def client(monkeypatch):
-    # Fresh ERP and results per test: the app keeps both in memory.
-    monkeypatch.setattr(api, "erp", ERP())
-    monkeypatch.setattr(api, "results", {})
+    # Fresh sessions and limits per test: the app keeps both in memory.
+    monkeypatch.setattr(api, "sessions", api.OrderedDict())
+    monkeypatch.setattr(api, "limiter", api.Limiter())
+    for var in ("DEMO_ACCESS_CODE", "DEMO_PROVIDERS", "DEMO_RUNS_PER_HOUR", "DEMO_RUNS_PER_DAY"):
+        monkeypatch.delenv(var, raising=False)
     return TestClient(api.app)
+
+
+def use_script(monkeypatch, script):
+    async def fake(ticket, erp, provider=None, **kwargs):
+        return await agent_triage(ticket, ScriptedProvider(script), erp)
+    monkeypatch.setattr(api, "run_triage", fake)
 
 
 def script_for(*actions):
@@ -24,7 +32,7 @@ def script_for(*actions):
 
 
 def triage(client, monkeypatch, *actions):
-    monkeypatch.setattr(api, "make_provider", lambda name=None: ScriptedProvider(script_for(*actions)))
+    use_script(monkeypatch, script_for(*actions))
     r = client.post("/api/tickets/T-1003/triage")
     assert r.status_code == 200
     return r.json()
@@ -92,7 +100,7 @@ def test_credit_cap_counts_credits_approved_on_other_tickets(client, monkeypatch
     assert approve(client, body["proposal_id"], [0]).status_code == 200
     script = [[("get_order", {"order_id": "SO-5003"})],
               [("submit_proposal", proposal(category="pricing_error", actions=[{**CREDIT, "amount_eur": 60.0}]))]]
-    monkeypatch.setattr(api, "make_provider", lambda name=None: ScriptedProvider(script))
+    use_script(monkeypatch, script)
     second = client.post("/api/tickets/T-1008/triage").json()
     assert any("already approved" in v for v in second["policy_violations"])
     r = client.post("/api/tickets/T-1008/approve",
@@ -128,7 +136,8 @@ def test_two_approvals_at_once_apply_the_action_once(client, monkeypatch):
 
     async def go():
         transport = httpx.ASGITransport(app=api.app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test",
+                                     cookies={api.COOKIE: client.cookies.get(api.COOKIE)}) as c:
             async def one():
                 codes.append((await c.post("/api/tickets/T-1003/approve", json=payload)).status_code)
             async with anyio.create_task_group() as tg:

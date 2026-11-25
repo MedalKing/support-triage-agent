@@ -2,52 +2,193 @@
 
     uvicorn support_agent.api:app --reload
 
-POST /api/tickets/{id}/triage runs the agent; POST /api/tickets/{id}/approve applies the
-actions a person approved. Actions that break policy are refused here as well as in the UI.
-An approval names the proposal it was given for, so a newer triage can't swap the actions
-underneath the reviewer, and each action can be applied only once.
+GET  /api/tickets/{id}/recorded  replays a saved run instantly, at no cost.
+POST /api/tickets/{id}/triage    runs the agent live.
+POST /api/tickets/{id}/approve   applies the actions a person approved.
 
-This is a local demo: there is no login, so `approved_by` is whatever the caller sends.
+Actions that break policy are refused here as well as in the UI. An approval names the
+proposal it was given for, so a newer triage can't swap the actions underneath the
+reviewer, and each action can be applied only once.
+
+Each visitor gets their own session (a cookie): their own copy of the sample ERP, their
+own proposals and their own audit log, so visitors never see or undo each other's approvals.
+
+Public use (set by environment variables):
+- DEMO_ACCESS_CODE: live runs need this code; recorded runs stay open to everyone.
+- DEMO_PROVIDERS: which providers the page offers (default "auto,claude,ollama").
+- DEMO_RUNS_PER_HOUR: live runs per visitor per hour (default 10).
+- DEMO_RUNS_PER_DAY: live runs for everyone together per UTC day (default 200), a cost cap.
+There is no login, so `approved_by` is whatever the caller sends.
 """
 
 from __future__ import annotations
 
+import hmac
+import json
+import os
+import secrets
+import time
+from collections import OrderedDict, deque
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictInt, field_validator
 
-from .agent import TriageResult, load_tickets, triage
+from .agent import TraceStep, TriageResult, load_tickets, ticket_message
 from .erp import ERP
-from .proposal import check_policy
-from .providers import ProviderError, make_provider
+from .escalation import run_triage
+from .proposal import Proposal, check_policy
+from .providers import ProviderError
+from .redact import Redactor
 
 app = FastAPI(title="Support triage agent")
-erp = ERP()
 tickets = {t["id"]: t for t in load_tickets()}
-results: dict[str, TriageResult] = {}
+RECORDED_DIR = Path(__file__).parent / "data" / "recorded"
+COOKIE = "triage_session"
+MAX_SESSIONS = 1000  # oldest sessions are dropped first, so memory stays bounded
+
+
+@dataclass
+class Session:
+    erp: ERP = field(default_factory=ERP)
+    results: dict[str, TriageResult] = field(default_factory=dict)
+
+
+sessions: OrderedDict[str, Session] = OrderedDict()
+
+
+def session(request: Request, response: Response) -> Session:
+    sid = request.cookies.get(COOKIE)
+    if sid not in sessions:
+        sid = secrets.token_urlsafe(18)
+        sessions[sid] = Session()
+        if len(sessions) > MAX_SESSIONS:
+            sessions.popitem(last=False)
+        secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+        response.set_cookie(COOKIE, sid, httponly=True, samesite="strict", secure=secure)
+    sessions.move_to_end(sid)
+    return sessions[sid]
+
+
+# --- limits on live runs -------------------------------------------------------------
+
+def providers_offered() -> list[str]:
+    return [p.strip() for p in os.environ.get("DEMO_PROVIDERS", "auto,claude,ollama").split(",") if p.strip()]
+
+
+class Limiter:
+    """Live runs per visitor per hour, and for everyone together per day."""
+
+    def __init__(self) -> None:
+        self.recent: dict[str, deque[float]] = {}
+        self.day, self.today = "", 0
+
+    def check(self, visitor: str) -> None:
+        per_hour = int(os.environ.get("DEMO_RUNS_PER_HOUR", "10"))
+        per_day = int(os.environ.get("DEMO_RUNS_PER_DAY", "200"))
+        now, day = time.time(), datetime.now(timezone.utc).date().isoformat()
+        if day != self.day:
+            self.day, self.today = day, 0
+        if self.today >= per_day:
+            raise HTTPException(429, "The demo's live runs for today are used up. Recorded runs still work.")
+        recent = self.recent.setdefault(visitor, deque())
+        while recent and recent[0] < now - 3600:
+            recent.popleft()
+        if len(recent) >= per_hour:
+            raise HTTPException(429, f"At most {per_hour} live runs per hour. Recorded runs still work.")
+        recent.append(now)
+        self.today += 1
+
+
+limiter = Limiter()
+
+
+def visitor_id(request: Request) -> str:
+    # Behind a hosting proxy the visitor's address is the first X-Forwarded-For entry.
+    forwarded = request.headers.get("x-forwarded-for", "") if os.environ.get("DEMO_TRUST_PROXY") else ""
+    return forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+
+
+def check_access_code(code: str | None) -> None:
+    expected = os.environ.get("DEMO_ACCESS_CODE")
+    if expected and not hmac.compare_digest((code or "").strip().encode(), expected.encode()):
+        raise HTTPException(403, "Live runs need the access code. Recorded runs work without one.")
+
+
+# --- endpoints -----------------------------------------------------------------------
+
+@app.get("/api/config")
+def config() -> dict[str, Any]:
+    return {
+        "providers": providers_offered(),
+        "access_code_required": bool(os.environ.get("DEMO_ACCESS_CODE")),
+        "recorded": sorted(p.stem for p in RECORDED_DIR.glob("*.json")),
+    }
 
 
 @app.get("/api/tickets")
-def list_tickets() -> list[dict[str, Any]]:
-    return [{**t, "triaged": t["id"] in results} for t in tickets.values()]
+def list_tickets(s: Session = Depends(session)) -> list[dict[str, Any]]:
+    return [{**t, "triaged": t["id"] in s.results} for t in tickets.values()]
 
 
 @app.post("/api/tickets/{ticket_id}/triage")
-async def run_triage(ticket_id: str, provider: str | None = None) -> dict[str, Any]:
+async def live_triage(ticket_id: str, request: Request, provider: str | None = None,
+                      x_access_code: str | None = Header(default=None),
+                      s: Session = Depends(session)) -> dict[str, Any]:
     ticket = tickets.get(ticket_id)
     if ticket is None:
         raise HTTPException(404, "ticket not found")
+    name = (provider or providers_offered()[0]).lower()
+    if name not in providers_offered():
+        raise HTTPException(400, f"provider {name!r} is not offered here; use one of {providers_offered()}")
+    check_access_code(x_access_code)
+    limiter.check(visitor_id(request))
     try:
-        result = await triage(ticket, make_provider(provider), erp)
+        result = await run_triage(ticket, s.erp, name)
     except ProviderError as e:
         raise HTTPException(502, str(e)) from e
     except ValueError as e:  # unknown provider or a bad AGENT_TODAY
         raise HTTPException(400, str(e)) from e
-    results[ticket_id] = result
+    s.results[ticket_id] = result
     return result.to_dict()
+
+
+@app.get("/api/tickets/{ticket_id}/recorded")
+def recorded_triage(ticket_id: str, s: Session = Depends(session)) -> dict[str, Any]:
+    """A saved run, loaded into this visitor's session so it can be reviewed and approved."""
+    ticket = tickets.get(ticket_id)
+    path = RECORDED_DIR / f"{ticket_id}.json"
+    if ticket is None or not path.exists():
+        raise HTTPException(404, "no recorded run for this ticket")
+    result = load_recorded(ticket, json.loads(path.read_text(encoding="utf-8")), s.erp)
+    s.results[ticket_id] = result
+    return result.to_dict()
+
+
+def load_recorded(ticket: dict[str, Any], saved: dict[str, Any], erp: ERP) -> TriageResult:
+    proposal = None
+    if saved["proposal"] is not None:
+        raw = dict(saved["proposal"])
+        raw["actions"] = [{k: v for k, v in a.items() if k not in ("needs_approval", "approval_reason")}
+                          for a in raw["actions"]]
+        proposal = Proposal.model_validate(raw)
+    # Saved with placeholders in the reply. Redacting the ticket again gives the same mapping,
+    # so the reply can be restored for the reviewer as in a live run.
+    redactor = Redactor()
+    redactor.redact(ticket_message(ticket))
+    result = TriageResult(
+        ticket["id"], saved["provider"], proposal, [],
+        [TraceStep(t["kind"], t["name"], t["detail"]) for t in saved["trace"]], redactor,
+        escalation=saved.get("escalation"), recorded=True,
+    )
+    if proposal is not None:  # policy is checked again against this visitor's ERP
+        result.policy_violations = check_policy(proposal, ticket["customer_id"], erp, result.proposal_id)
+    result.error = saved.get("error")
+    return result
 
 
 class Approval(BaseModel):
@@ -66,15 +207,15 @@ class Approval(BaseModel):
 # `async def` with no await inside: the check and the write run in one step on the event loop,
 # so two approvals of the same action can't both pass the check.
 @app.post("/api/tickets/{ticket_id}/approve")
-async def approve(ticket_id: str, approval: Approval) -> dict[str, Any]:
+async def approve(ticket_id: str, approval: Approval, s: Session = Depends(session)) -> dict[str, Any]:
     if ticket_id not in tickets:
         raise HTTPException(404, "ticket not found")
-    result = results.get(ticket_id)
+    result = s.results.get(ticket_id)
     if result is None or result.proposal is None:
         raise HTTPException(409, "triage the ticket first")
     if approval.proposal_id != result.proposal_id:
         raise HTTPException(409, "the proposal has changed since you loaded it; review it again")
-    if check_policy(result.proposal, tickets[ticket_id]["customer_id"], erp, result.proposal_id):
+    if check_policy(result.proposal, tickets[ticket_id]["customer_id"], s.erp, result.proposal_id):
         raise HTTPException(422, "proposal violates policy; fix it by hand instead")
     # Validate the whole selection before writing anything.
     actions = result.proposal.actions
@@ -91,15 +232,20 @@ async def approve(ticket_id: str, approval: Approval) -> dict[str, Any]:
     applied = []
     for i in indexes:
         action = actions[i].model_dump()
-        applied.append(erp.apply_action({"ticket_id": ticket_id, "proposal_id": result.proposal_id, **action},
-                                        approval.approved_by))
+        applied.append(s.erp.apply_action({"ticket_id": ticket_id, "proposal_id": result.proposal_id, **action},
+                                          approval.approved_by))
         result.applied.add(i)
     return {"applied": applied}
 
 
 @app.get("/api/audit")
-def audit() -> list[dict[str, Any]]:
-    return erp.audit_log
+def audit(s: Session = Depends(session)) -> list[dict[str, Any]]:
+    return s.erp.audit_log
+
+
+@app.get("/healthz")
+def healthz() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 dist = Path(__file__).parent.parent / "web" / "dist"

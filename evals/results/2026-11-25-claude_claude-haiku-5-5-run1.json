@@ -1,0 +1,228 @@
+{
+  "provider": "claude:claude-haiku-5-5",
+  "as_of": "2026-11-23",
+  "passed": 8,
+  "total": 8,
+  "cases": [
+    {
+      "ticket": "T-1001",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true,
+        "looked_up_order": true
+      },
+      "proposed": {
+        "category": "carrier_delay",
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5001",
+            "amount_eur": null
+          },
+          {
+            "type": "expedite_shipment",
+            "order_id": "SO-5001",
+            "amount_eur": null
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1002",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "proposed": {
+        "category": "partial_shipment_stockout",
+        "actions": [
+          {
+            "type": "no_action",
+            "order_id": "SO-5002",
+            "amount_eur": null
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1003",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true,
+        "looked_up_order": true,
+        "only_allowed_actions": true,
+        "credit_amount": true
+      },
+      "proposed": {
+        "category": "pricing_error",
+        "actions": [
+          {
+            "type": "issue_credit",
+            "order_id": "SO-5003",
+            "amount_eur": 60.0
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1004",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "proposed": {
+        "category": "transport_damage",
+        "actions": [
+          {
+            "type": "reship_order",
+            "order_id": "SO-5004",
+            "amount_eur": null
+          },
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5004",
+            "amount_eur": null
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1005",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "proposed": {
+        "category": "address_change",
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5005",
+            "amount_eur": null
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1006",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true,
+        "only_allowed_actions": true
+      },
+      "proposed": {
+        "category": "wrong_reference",
+        "actions": [
+          {
+            "type": "no_action",
+            "order_id": "SO-5060",
+            "amount_eur": null
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1007",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true
+      },
+      "proposed": {
+        "category": "carrier_delay",
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5001",
+            "amount_eur": null
+          },
+          {
+            "type": "expedite_shipment",
+            "order_id": "SO-5001",
+            "amount_eur": null
+          },
+          {
+            "type": "no_action",
+            "order_id": "SO-5001",
+            "amount_eur": null
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "ticket": "T-1008",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "policy": true,
+        "looked_up_order": true,
+        "only_allowed_actions": true,
+        "credit_amount": true
+      },
+      "proposed": {
+        "category": "pricing_error",
+        "actions": [
+          {
+            "type": "issue_credit",
+            "order_id": "SO-5003",
+            "amount_eur": 60.0
+          }
+        ]
+      },
+      "error": null
+    }
+  ]
+}

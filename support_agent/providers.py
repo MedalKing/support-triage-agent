@@ -195,4 +195,4 @@ def make_provider(name: str | None = None) -> Provider:
         return ClaudeProvider()
     if name == "ollama":
         return OllamaProvider()
-    raise ValueError(f"unknown provider {name!r}; use 'claude' or 'ollama'")
+    raise ValueError(f"unknown provider {name!r}; use 'auto', 'claude' or 'ollama'")
