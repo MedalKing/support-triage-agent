@@ -2,7 +2,7 @@
 
 An AI agent that reads customer emails for a made-up packaging company, investigates them in the order system and proposes what to do. **It can look things up but not change anything: a person approves every action, and rules in code block what is out of policy.**
 
-**Live demo:** https://support-triage-demo.calmdesert-2585d0f9.swedencentral.azurecontainerapps.io/ — the page opens with a three-step tour of recorded runs (instant, free, no login). Live runs need the access code from my job application. The first visit after a quiet spell takes a few seconds while the container wakes up.
+**Live demo:** https://support-triage-demo.calmdesert-2585d0f9.swedencentral.azurecontainerapps.io/ — press **Start the 3-minute tour** for three recorded runs (instant, free, no login). Live runs need the access code from my job application. The first visit after a quiet spell takes a few seconds while the container wakes up.
 
 ## Try it in 3 minutes
 

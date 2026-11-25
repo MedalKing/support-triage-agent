@@ -194,6 +194,39 @@ export default function App() {
         ? { id: escalation.ticket, label: `Next: a run Claude Opus redid (${escalation.ticket}) →` }
         : null;
 
+  // The first screen is a calm landing page; the ticket list appears once you are inside.
+  if (!selected) {
+    return (
+      <div className="landing">
+        <p className="eyebrow">Support triage agent · a demo</p>
+        <h1>An AI agent proposes. A person decides.</h1>
+        <p className="lead">
+          It reads customer emails for a made-up packaging company, looks up the order and proposes what to do. It can't
+          change anything itself: you approve each action, and rules in code block what's out of policy.
+        </p>
+        <button className="primary" onClick={() => open(tour[0].ticket)} disabled={!tickets.length}>
+          Start the 3-minute tour →
+        </button>
+        <ol className="steps">
+          {tour.map((step) => (
+            <li key={step.ticket}>
+              <button className="link" onClick={() => open(step.ticket)}>
+                {step.title}
+              </button>
+            </li>
+          ))}
+        </ol>
+        <p className="muted small">
+          Recorded runs, instant and free. <button className="link small" onClick={() => open(tickets[0]?.id)}>Browse all 8
+          emails</button>
+        </p>
+        {message && <p className="error">{message}</p>}
+      </div>
+    );
+  }
+
+  const tourIndex = tour.findIndex((s) => s.ticket === selected.id);
+
   return (
     <div className="layout">
       <aside>
@@ -202,77 +235,49 @@ export default function App() {
             Support triage agent
           </button>
         </h1>
-        <p className="muted small">Sample emails to a made-up packaging company.</p>
         {tickets.map((t) => (
-          <button key={t.id} className={selected?.id === t.id ? "ticket active" : "ticket"} onClick={() => open(t.id)}>
-            <span className="id">
-              {t.id}{" "}
-              <span className="scenario">
-                {SCENARIOS[t.id]}
-                {config?.escalated[t.id] && " · escalated"}
-              </span>
-            </span>
+          <button key={t.id} className={selected.id === t.id ? "ticket active" : "ticket"} onClick={() => open(t.id)}>
             {t.subject}
+            <span className="id">
+              {t.id} · {SCENARIOS[t.id]}
+              {config?.escalated[t.id] && " · escalated"}
+            </span>
           </button>
         ))}
 
-        <section className="audit">
-          <h2>Audit log</h2>
-          {audit.length === 0 && <p className="muted small">Nothing approved yet. Approved actions appear here.</p>}
-          {audit.map((e, i) => (
-            <div key={i} className="small entry">
-              <strong>{e.type}</strong> on {e.order_id}
-              {e.amount_eur != null && <> · {e.amount_eur.toFixed(2)} €</>} <span className="muted">({e.ticket_id})</span>
-            </div>
-          ))}
-          {audit.length > 0 && (
+        {audit.length > 0 && (
+          <section className="audit">
+            <h2>Audit log</h2>
+            {audit.map((e, i) => (
+              <div key={i} className="small entry">
+                <strong>{e.type}</strong> on {e.order_id}
+                {e.amount_eur != null && <> · {e.amount_eur.toFixed(2)} €</>} <span className="muted">({e.ticket_id})</span>
+              </div>
+            ))}
             <p className="muted small">The order system is simulated: actions are logged, only address changes edit the order.</p>
-          )}
-          <button className="secondary" onClick={startOver} disabled={busy}>
-            Start over
-          </button>
-        </section>
+            <button className="secondary" onClick={startOver} disabled={busy}>
+              Start over
+            </button>
+          </section>
+        )}
       </aside>
 
       <main>
-        {!selected && (
-          <>
-            <section className="card intro">
-              <h2>An AI agent proposes; a person decides</h2>
-              <p>
-                Each ticket is a customer email. The agent looks up the order, the shipment and the internal instructions,
-                then proposes what happened, what to do and a reply. It can read but not change anything: you approve each
-                action, and rules in code block what is out of policy.
-              </p>
-              <ol className="flow">
-                <li>Personal data masked</li>
-                <li>Read-only lookups for this customer</li>
-                <li>Structured proposal</li>
-                <li>Policy check in code</li>
-                <li>You approve</li>
-              </ol>
-            </section>
-            <h3>Try this (3 minutes)</h3>
-            {tour.map((step, i) => (
-              <button key={step.ticket} className="card tour" onClick={() => open(step.ticket)}>
-                <span className="step-no">{i + 1}</span>
-                <strong>
-                  {step.title} <span className="muted">· {step.ticket}</span>
-                </strong>
-                <span className="muted">{step.text}</span>
-              </button>
-            ))}
-            <p className="muted small">
-              Each ticket opens a recorded run of the agent, so it is instant and free. With the access code you can also
-              run it live.
-            </p>
-          </>
-        )}
         {selected && (
           <>
-            <button className="link" onClick={goHome}>
-              ← Back to the tour
-            </button>
+            <div className="tourbar">
+              <button className="link" onClick={goHome}>
+                ← Start
+              </button>
+              {tourIndex >= 0 && (
+                <p>
+                  <strong>
+                    Tour · step {tourIndex + 1} of {tour.length}: {tour[tourIndex].title}.
+                  </strong>{" "}
+                  {tour[tourIndex].text}
+                </p>
+              )}
+            </div>
             <section className="card">
               <h2>{selected.subject}</h2>
               <p className="muted">
