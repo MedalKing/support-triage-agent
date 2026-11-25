@@ -134,7 +134,8 @@ def recorded_escalations() -> dict[str, dict[str, Any]]:
         before = saved["trace"][:names.index("escalated")] if "escalated" in names else []
         first = next((s["detail"] for s in before if s["name"] == "submit_proposal"), None)
         final = saved["proposal"]
-        actions = lambda p: sorted((a["type"], a["order_id"]) for a in p["actions"]) if p else None  # noqa: E731
+        actions = lambda p: sorted((a["type"], a["order_id"], a["amount_eur"], a["new_address"])  # noqa: E731
+                                   for a in p["actions"]) if p else None
         out[path.stem] = {"reasons": saved["escalation"]["reasons"],
                           "changed": actions(first) != actions(final)}
     return out

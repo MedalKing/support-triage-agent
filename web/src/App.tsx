@@ -60,7 +60,7 @@ function escalationStep(config: Config | null): TourStep | null {
   return {
     ticket,
     title: "A cheap model first, a stronger one when code sees trouble",
-    text: `Claude Haiku handles each ticket first. On this one, code saw that ${e.reasons.join("; ")}, so Claude Opus redid the run${
+    text: `Claude Haiku handles each ticket first. On this one, code saw that ${e.reasons.join(" and ")}, so Claude Opus redid the run${
       e.changed ? " and proposed different actions" : ""
     }. The trace shows both attempts.`,
   };
@@ -180,12 +180,15 @@ export default function App() {
   }
 
   const blocked = (result?.policy_violations.length ?? 0) > 0;
+  const actionable = !!result?.proposal?.actions.some((a) => a.type !== "no_action");
   const escalation = escalationStep(config);
   const tour = [...TOUR, ...(escalation ? [escalation] : [])];
   const creditApproved = !!result?.proposal?.actions.some((a, i) => a.type === "issue_credit" && result.applied.includes(i));
   // The next step of the tour, offered where the visitor is.
   const next =
-    selected?.id === "T-1003" && creditApproved
+    selected?.id === "T-1007" && result?.proposal
+      ? { id: "T-1003", label: "Next: step 2, a credit and then a second one →" }
+      : selected?.id === "T-1003" && creditApproved
       ? { id: "T-1008", label: "Next: open T-1008, the same refund asked for again →" }
       : selected?.id === "T-1008" && blocked && escalation
         ? { id: escalation.ticket, label: `Next: a run Claude Opus redid (${escalation.ticket}) →` }
@@ -326,7 +329,8 @@ export default function App() {
                 {result.escalation && (
                   <div className="escalation">
                     Redone by {modelName(result.escalation.to)} after {modelName(result.escalation.from)}, because{" "}
-                    {result.escalation.reasons.join("; ")}. The trace below shows both attempts.
+                    {result.escalation.reasons.join(" and ")}.
+                    <FirstAttempt result={result} /> The trace below shows both attempts.
                   </div>
                 )}
                 <p>{result.proposal.likely_cause}</p>
@@ -338,10 +342,13 @@ export default function App() {
                 </ul>
 
                 <h3>Actions</h3>
-                <p className="muted small">
-                  Nothing happens until you press Approve. Free requests, such as asking the carrier for news, are ticked
-                  for you. Actions that cost money or change the order are left for you to tick, with what to check.
-                </p>
+                {actionable && (
+                  <p className="muted small">
+                    Nothing happens until you press Approve. Free requests, such as asking the carrier for news, are
+                    ticked for you. Actions that cost money or change the order are left for you to tick, with what to
+                    check.
+                  </p>
+                )}
                 {blocked && (
                   <div className="error">
                     Blocked by policy (checked in code, not by the model):
@@ -373,9 +380,11 @@ export default function App() {
                     {a.approval_reason && <div className="why">What to check: {a.approval_reason}</div>}
                   </label>
                 ))}
-                <button onClick={submit} disabled={blocked || busy || checked.length === 0}>
-                  Approve selected
-                </button>
+                {actionable && (
+                  <button onClick={submit} disabled={blocked || busy || checked.length === 0}>
+                    Approve selected
+                  </button>
+                )}
                 {message && <p className="notice">{message}</p>}
                 {next && (
                   <button className="next" onClick={() => open(next.id)}>
@@ -413,6 +422,26 @@ export default function App() {
   );
 }
 
+// What the first model proposed before the run was redone, in one line.
+function FirstAttempt({ result }: { result: TriageResult }) {
+  const cut = result.trace.findIndex((s) => s.kind === "note" && s.name === "escalated");
+  const first = result.trace
+    .slice(0, cut)
+    .find((s) => s.name === "submit_proposal")?.detail as
+    | { actions: { type: string; order_id: string; amount_eur: number | null }[]; confidence: string }
+    | undefined;
+  if (!first) return <> {modelName(result.escalation!.from)} gave no usable proposal.</>;
+  const actions = first.actions
+    .map((a) => `${a.type} on ${a.order_id}${a.amount_eur != null ? ` (${a.amount_eur.toFixed(2)} €)` : ""}`)
+    .join(", ");
+  return (
+    <>
+      {" "}
+      {modelName(result.escalation!.from)} had proposed: {actions || "nothing"}, with confidence {first.confidence}.
+    </>
+  );
+}
+
 // The trace, split into attempts when a run was escalated.
 function Trace({ result }: { result: TriageResult }) {
   const attempts: { title: string; steps: TraceStep[] }[] = [];
@@ -429,10 +458,11 @@ function Trace({ result }: { result: TriageResult }) {
     steps.push(s);
   }
   attempts.push({ title, steps });
+  const count = attempts.reduce((n, a) => n + a.steps.length, 0);
   return (
     <details className="card">
       <summary>
-        What the agent did ({result.trace.length} steps{result.escalation ? ", two attempts" : ""})
+        What the agent did ({count} steps{result.escalation ? ", two attempts" : ""})
       </summary>
       {attempts.map((a, i) => (
         <section key={i} className="attempt">

@@ -30,6 +30,7 @@ APPROVAL_REASONS = {
     "update_delivery_address": "Changes where the order goes. Check the new address with the customer's message.",
 }
 NEEDS_APPROVAL = set(APPROVAL_REASONS)
+REDIRECT_REASON = "Sends the goods somewhere else. Check the new address with the customer's message."
 MAX_AGENT_CREDIT_SHARE = 0.25  # larger credits are out of scope for the agent
 
 
@@ -148,8 +149,9 @@ def drop_stray_fields(proposal: Proposal) -> list[str]:
 def check_policy(proposal: Proposal, ticket_customer_id: str, erp: Any, proposal_id: str | None = None) -> list[str]:
     """Return policy violations. Violating actions are blocked in the UI and at the approval API.
 
-    The credit cap counts credits already approved on the order by other proposals, so two
-    tickets about the same invoice can't add up past it.
+    Credits: an order that already has an approved credit from another proposal (another
+    ticket, or an earlier run of this one) needs a manager for the next one, whatever the
+    amounts. A first credit must stay within the cap, counting all its actions together.
     """
     problems = []
     credits: dict[str, float] = defaultdict(float)
@@ -192,13 +194,9 @@ def check_policy(proposal: Proposal, ticket_customer_id: str, erp: Any, proposal
                             f"({done}); a second credit needs a manager")
             continue
         # The cap is per order, so splitting a credit into several actions doesn't get around it.
-        invoice = erp.get_order(order_id)["invoice_total_eur"]
-        earlier = erp.approved_credit_eur(order_id, except_proposal=proposal_id)
         # Compare in whole cents so float rounding can't nudge an amount past the cap.
-        if round((earlier + proposed) * 100) > round(MAX_AGENT_CREDIT_SHARE * invoice * 100):
-            already = f" ({earlier:.2f} EUR already approved)" if earlier else ""
-            problems.append(
-                f"issue_credit: {earlier + proposed:.2f} EUR on {order_id}{already} exceeds "
-                f"{MAX_AGENT_CREDIT_SHARE:.0%} of the invoice ({invoice:.2f} EUR); needs a manager"
-            )
+        invoice = erp.get_order(order_id)["invoice_total_eur"]
+        if round(proposed * 100) > round(MAX_AGENT_CREDIT_SHARE * invoice * 100):
+            problems.append(f"issue_credit: {proposed:.2f} EUR on {order_id} exceeds "
+                            f"{MAX_AGENT_CREDIT_SHARE:.0%} of the invoice ({invoice:.2f} EUR); needs a manager")
     return problems

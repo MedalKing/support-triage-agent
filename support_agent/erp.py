@@ -64,9 +64,6 @@ class ERP:
         return [e for e in self.audit_log if e["type"] == "issue_credit" and e["order_id"] == order_id
                 and e.get("proposal_id") != except_proposal]
 
-    def approved_credit_eur(self, order_id: str, except_proposal: str | None = None) -> float:
-        return sum(e["amount_eur"] for e in self.approved_credits(order_id, except_proposal))
-
     # --- write side (only after human approval) ---
 
     def apply_action(self, action: dict[str, Any], approved_by: str) -> dict[str, Any]:

@@ -7,7 +7,7 @@
 #   order:             the order the required actions must target
 #   credit_eur:        the total credit expected, all of it on that order, exact to the cent
 #   allowed_actions:   no action types beyond these
-#   working_days_late: any "N working days" in the cause, evidence or reply must be this number
+#   working_days_late: any "N working days late" in the cause, evidence, action reasons or reply must be this number
 # Every case also checks that no personal data reached the model and that the reply is ready to
 # send (no placeholders, no stray quotation marks).
 # Cases run on the demo date, Monday 2026-11-23.

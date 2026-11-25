@@ -43,6 +43,7 @@ def test_a_clear_ticket_stays_with_the_fast_model():
 @pytest.mark.parametrize("overrides, reason", [
     ({"confidence": "medium"}, "confidence was medium"),
     ({"category": "other"}, "no runbook category fits"),
+    ({"actions": []}, "no actions at all"),  # Haiku did this on T-1008 with high confidence
     ({"actions": [{"type": "contact_carrier", "order_id": "SO-5001", "reason": "x", "amount_eur": None,
                    "new_address": None},
                   {"type": "no_action", "order_id": "SO-5005", "reason": "x", "amount_eur": None,
@@ -182,3 +183,32 @@ def test_a_run_that_ends_after_start_over_is_not_stored(client, monkeypatch):
     assert client.post("/api/tickets/T-1001/triage").status_code == 409
     assert client.post("/api/tickets/T-1001/approve", json={
         "proposal_id": "x", "action_indexes": [0], "approved_by": "v"}).status_code == 409  # nothing stored
+
+
+def test_a_first_model_that_fails_midway_still_counts_for_the_privacy_check():
+    class FailsAfterLookup(ScriptedProvider):
+        def step(self):
+            if not self.script:
+                raise ProviderError("refused")
+            return super().step()
+
+    def fails():
+        p = FailsAfterLookup([LOOKUP])
+        p.name = "fast"
+        return p
+    result = escalate(fails)
+    assert result.escalation["reasons"] == ["the first model failed: refused"]
+    # What the first model saw before failing is kept: the trace and its inputs.
+    assert [s.name for s in result.trace][:2] == ["first_attempt", "get_order"]
+    assert any("Pohjola Bakery" in text for text in result.model_inputs[:2])
+
+
+def test_a_carrier_redirect_needs_a_tick_but_a_status_request_does_not():
+    actions = [{"type": "contact_carrier", "order_id": "SO-5005", "reason": "ask for news",
+                "amount_eur": None, "new_address": None},
+               {"type": "contact_carrier", "order_id": "SO-5005", "reason": "redirect",
+                "amount_eur": None, "new_address": "Satamatie 2, Kemi"}]
+    script = [[("get_order", {"order_id": "SO-5005"})], [("submit_proposal", proposal(actions=actions))]]
+    shown = anyio.run(lambda: triage(TICKETS["T-1005"], ScriptedProvider(script), ERP())).to_dict()
+    assert [a["needs_approval"] for a in shown["proposal"]["actions"]] == [False, True]
+    assert "somewhere else" in shown["proposal"]["actions"][1]["approval_reason"]

@@ -47,6 +47,8 @@ def escalation_reasons(result: TriageResult) -> list[str]:
     if result.proposal.category == "other":
         reasons.append("no runbook category fits")
     types = {a.type for a in result.proposal.actions}
+    if not types:  # not even no_action: the model didn't decide anything
+        reasons.append("it proposed no actions at all, not even no_action")
     if "no_action" in types and len(types) > 1:
         reasons.append("it proposed taking no action and real actions at the same time")
     corrected = sorted({CORRECTION_NOTES[s.name] for s in result.trace if s.kind == "note" and s.name in CORRECTION_NOTES})
@@ -76,7 +78,9 @@ async def triage_with_escalation(
         reasons = escalation_reasons(first)
         first_trace, first_inputs = first.trace, first.model_inputs
     except ProviderError as e:  # e.g. a refusal or max_tokens on the small model
-        reasons, first_trace, first_inputs = [f"the first model failed: {e}"], [], []
+        partial = getattr(e, "partial", None)  # what the first model saw before it failed
+        reasons = [f"the first model failed: {e}"]
+        first_trace, first_inputs = (partial.trace, partial.model_inputs) if partial else ([], [])
     if not reasons:
         return first
 

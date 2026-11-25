@@ -1,8 +1,8 @@
 {
-  "provider": "auto:claude-haiku-5-5->claude-opus-5-5",
+  "provider": "claude:claude-opus-5-5",
   "as_of": "2026-11-23",
   "passed": 8,
-  "escalated": 3,
+  "escalated": 0,
   "total": 8,
   "cases": [
     {
@@ -23,7 +23,6 @@
       "proposed": {
         "category": "carrier_delay",
         "stated_delay": [
-          "9",
           "9"
         ],
         "actions": [
@@ -39,13 +38,7 @@
           }
         ]
       },
-      "escalation": {
-        "from": "claude:claude-haiku-5-5",
-        "to": "claude:claude-opus-5-5",
-        "reasons": [
-          "the model had to be corrected (a proposal that broke the schema)"
-        ]
-      },
+      "escalation": null,
       "error": null
     },
     {
@@ -161,13 +154,7 @@
           }
         ]
       },
-      "escalation": {
-        "from": "claude:claude-haiku-5-5",
-        "to": "claude:claude-opus-5-5",
-        "reasons": [
-          "the model's confidence was medium"
-        ]
-      },
+      "escalation": null,
       "error": null
     },
     {
@@ -190,18 +177,12 @@
         "actions": [
           {
             "type": "no_action",
-            "order_id": "SO-5060",
+            "order_id": "SO-5006",
             "amount_eur": null
           }
         ]
       },
-      "escalation": {
-        "from": "claude:claude-haiku-5-5",
-        "to": "claude:claude-opus-5-5",
-        "reasons": [
-          "the model's confidence was medium"
-        ]
-      },
+      "escalation": null,
       "error": null
     },
     {
@@ -221,7 +202,6 @@
       "proposed": {
         "category": "carrier_delay",
         "stated_delay": [
-          "9",
           "9"
         ],
         "actions": [

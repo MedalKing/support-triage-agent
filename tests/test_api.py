@@ -108,7 +108,7 @@ def test_a_second_credit_on_an_invoice_needs_a_manager_even_when_small(client, m
     assert '"approved_credits": [{"ticket_id": "T-1003", "amount_eur": 20.0}]' in seen[0]
 
 
-def test_credit_cap_counts_credits_approved_on_other_tickets(client, monkeypatch):
+def test_a_second_credit_is_refused_at_approval_too(client, monkeypatch):
     # T-1003 and T-1008 are about the same invoice (470 EUR, cap 117.50 EUR).
     body = triage(client, monkeypatch, {**CREDIT, "amount_eur": 100.0})
     assert approve(client, body["proposal_id"], [0]).status_code == 200

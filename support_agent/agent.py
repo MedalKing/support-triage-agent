@@ -21,9 +21,9 @@ from pydantic import ValidationError
 
 from .erp import ERP
 from .erp_server import build_server
-from .proposal import (APPROVAL_REASONS, NEEDS_APPROVAL, SUBMIT_PROPOSAL_TOOL, Proposal, check_policy,
+from .proposal import (APPROVAL_REASONS, NEEDS_APPROVAL, REDIRECT_REASON, SUBMIT_PROPOSAL_TOOL, Proposal, check_policy,
                        drop_stray_fields, reply_problems)
-from .providers import Provider, ToolCall, ToolResult, ToolSpec
+from .providers import Provider, ProviderError, ToolCall, ToolResult, ToolSpec
 from .redact import Redactor
 
 TICKETS_FILE = Path(__file__).parent / "data" / "tickets.json"
@@ -67,8 +67,9 @@ How to work:
   the customer, who already knows them.
 - Write the reply as plain text, ready to send: no quotation marks around it and no placeholders
   of your own. Where a date is unknown, give a period such as "within two working days".
-- In the reply, describe actions that need approval as being reviewed, not as done or certain,
-  and don't claim anything the tools didn't show you.
+- Every action, even contacting the carrier, is only proposed until a person approves it. In the
+  reply, say what we will look into or are reviewing, never that something is done, flagged or
+  certain, and don't promise anything the tools didn't show you or that isn't among your actions.
 - Finish by calling submit_proposal exactly once.
 """
 
@@ -114,8 +115,10 @@ class TriageResult:
         if self.proposal is not None:
             proposal = self.proposal.model_dump()
             for action in proposal["actions"]:
-                action["needs_approval"] = action["type"] in NEEDS_APPROVAL
-                action["approval_reason"] = APPROVAL_REASONS.get(action["type"])
+                # Asking the carrier for news is free; asking it to deliver elsewhere is not.
+                redirect = action["type"] == "contact_carrier" and action["new_address"]
+                action["needs_approval"] = action["type"] in NEEDS_APPROVAL or bool(redirect)
+                action["approval_reason"] = REDIRECT_REASON if redirect else APPROVAL_REASONS.get(action["type"])
         return {
             "ticket_id": self.ticket_id,
             "proposal_id": self.proposal_id,
@@ -203,7 +206,11 @@ async def _triage(
         provider.start(system_prompt(as_of), user, tools)
         nudged = False
         for _ in range(max_steps):
-            turn = await anyio.to_thread.run_sync(provider.step)
+            try:
+                turn = await anyio.to_thread.run_sync(provider.step)
+            except ProviderError as e:
+                e.partial = result  # what the model saw so far, for the privacy check after escalation
+                raise
             if turn.text:
                 trace.append(TraceStep("model", "text", turn.text))
             if not turn.tool_calls:
