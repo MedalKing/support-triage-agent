@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 RUNBOOK_DIR = Path(__file__).parent / "data" / "runbooks"
-_TOKEN = re.compile(r"[a-z0-9]+")
+_TOKEN = re.compile(r"[^\W_]+")  # Unicode letters and digits, so ä and ö stay in words
 
 
 def tokenize(text: str) -> list[str]:

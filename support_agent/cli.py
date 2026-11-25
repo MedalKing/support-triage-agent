@@ -29,10 +29,12 @@ def main() -> None:
             print(f"{t['id']}  {t['subject']}")
         return
 
+    if args.ticket_id not in tickets:
+        raise SystemExit(f"error: no ticket {args.ticket_id}; use --list")
     try:
         result = anyio.run(lambda: triage(tickets[args.ticket_id], make_provider(args.provider), ERP(),
                                           transport="stdio"))
-    except ProviderError as e:
+    except (ProviderError, ValueError) as e:
         raise SystemExit(f"error: {e}")
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
 

@@ -123,6 +123,12 @@ class ClaudeProvider:
         self.messages.append({"role": "user", "content": text})
 
 
+@lru_cache(maxsize=1)
+def _shared_http_client() -> httpx.Client:
+    """One connection pool per process instead of one client per ticket."""
+    return httpx.Client(timeout=300)
+
+
 class OllamaProvider:
     """A local model through Ollama's native chat API (http://localhost:11434/api/chat)."""
 
@@ -131,7 +137,7 @@ class OllamaProvider:
         self.model = model or os.environ.get("OLLAMA_MODEL", "qwen3:8b")
         self.host = (host or os.environ.get("OLLAMA_HOST", "http://localhost:11434")).rstrip("/")
         self.name = f"ollama:{self.model}"
-        self.http = http or httpx.Client(timeout=300)
+        self.http = http or _shared_http_client()
         self._next_id = 0
 
     def start(self, system: str, user: str, tools: list[ToolSpec]) -> None:
@@ -153,20 +159,27 @@ class OllamaProvider:
             r.raise_for_status()
         except httpx.HTTPError as e:
             raise ProviderError(f"Ollama request failed: {e}") from e
-        message = r.json()["message"]
-        self.messages.append(message)
-        calls = []
-        for tc in message.get("tool_calls") or []:
-            fn = tc["function"]
-            args = fn.get("arguments") or {}
-            if isinstance(args, str):  # some models return a JSON string
-                try:
-                    args = json.loads(args)
-                except json.JSONDecodeError:
-                    args = {"_unparsed": args}
-            self._next_id += 1
-            calls.append(ToolCall(id=f"call_{self._next_id}", name=fn["name"], arguments=args))
-        return Turn(text=message.get("content") or "", tool_calls=calls)
+        try:
+            message = r.json()["message"]
+            calls = [self._parse_call(tc) for tc in message.get("tool_calls") or []]
+            text = message.get("content") or ""
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            raise ProviderError(f"Unexpected response from Ollama: {r.text[:200]}") from e
+        self.messages.append(message)  # only a well-formed message goes into the history
+        return Turn(text=text, tool_calls=calls)
+
+    def _parse_call(self, tc: dict[str, Any]) -> ToolCall:
+        fn = tc["function"]
+        args = fn.get("arguments") or {}
+        if isinstance(args, str):  # some models return a JSON string
+            try:
+                args = json.loads(args)
+            except json.JSONDecodeError:
+                args = {"_unparsed": args}
+        if not isinstance(args, dict):
+            args = {"_unparsed": args}
+        self._next_id += 1
+        return ToolCall(id=f"call_{self._next_id}", name=str(fn["name"]), arguments=args)
 
     def add_tool_results(self, results: list[ToolResult]) -> None:
         for r in results:

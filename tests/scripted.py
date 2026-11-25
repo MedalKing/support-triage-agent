@@ -17,6 +17,7 @@ class ScriptedProvider:
 
     def start(self, system: str, user: str, tools: list[ToolSpec]) -> None:
         self.tools = tools
+        self.system = system
         self.seen.append(user)
 
     def step(self) -> Turn:
