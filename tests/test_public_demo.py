@@ -104,7 +104,7 @@ def client(monkeypatch, tmp_path):
 
 def record(tmp_path, ticket_id="T-1001"):
     result = anyio.run(lambda: triage(TICKETS[ticket_id], scripted("claude:test", {})(), ERP()))
-    saved = result.to_dict(restore_pii=False)
+    saved = result.to_dict()
     (tmp_path / f"{ticket_id}.json").write_text(json.dumps(saved), encoding="utf-8")
     return saved
 
@@ -135,10 +135,10 @@ def test_only_offered_providers_can_be_used(client, monkeypatch):
 def test_recorded_runs_need_no_code_and_can_be_approved(client, monkeypatch, tmp_path):
     monkeypatch.setenv("DEMO_ACCESS_CODE", "letmein")
     saved = record(tmp_path)
-    assert "[EMAIL_1]" in saved["proposal"]["customer_reply"]  # saved without personal data
+    assert "anna.virtanen" not in json.dumps(saved)  # saved without personal data
     body = client.get("/api/tickets/T-1001/recorded").json()
     assert body["recorded"] is True
-    assert "anna.virtanen@pohjolabakery.example" in body["proposal"]["customer_reply"]  # restored for the reviewer
+    assert body["redactions"] == saved["redactions"]  # what the live run hid, not just the ticket
     r = client.post("/api/tickets/T-1001/approve",
                     json={"proposal_id": body["proposal_id"], "action_indexes": [0], "approved_by": "visitor"})
     assert r.status_code == 200
@@ -157,3 +157,16 @@ def test_visitors_do_not_see_each_others_approvals(client, tmp_path):
     r = other.post("/api/tickets/T-1001/approve",
                    json={"proposal_id": body["proposal_id"], "action_indexes": [0], "approved_by": "visitor"})
     assert r.status_code == 409
+
+
+def test_reset_starts_the_visitors_demo_over(client, tmp_path):
+    record(tmp_path)
+    body = client.get("/api/tickets/T-1001/recorded").json()
+    client.post("/api/tickets/T-1001/approve",
+                json={"proposal_id": body["proposal_id"], "action_indexes": [0], "approved_by": "visitor"})
+    assert len(client.get("/api/audit").json()) == 1
+    assert client.post("/api/reset").status_code == 200
+    assert client.get("/api/audit").json() == []
+    r = client.post("/api/tickets/T-1001/approve",
+                    json={"proposal_id": body["proposal_id"], "action_indexes": [0], "approved_by": "visitor"})
+    assert r.status_code == 409  # the old proposal is gone with the session's state

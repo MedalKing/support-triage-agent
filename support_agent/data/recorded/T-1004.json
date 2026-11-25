@@ -4,18 +4,18 @@
   "escalation": null,
   "proposal": {
     "category": "transport_damage",
-    "likely_cause": "Shipment SH-9004 was damaged in transit by BalticLine. The receiver noted \"3 pallets crushed\" on the proof of delivery at delivery on 8 Nov 2026, so the carrier accepted the damage. Per the transport-damage runbook, this qualifies for a reship of the damaged quantity and a carrier claim.",
+    "likely_cause": "Carrier BalticLine delivered SO-5004 on 2026-11-08 with three pallets crushed in transit. The receiver's damage note is attached to the proof of delivery, so the carrier accepted the damage and the goods are not a stock or pricing issue.",
     "evidence": [
-      "Order SO-5004 (customer C-204, Baltic Foods AB): 1000 x BOX-FOOD-250 at 0.65 EUR, invoice total 650.00 EUR, status delivered, promised 2026-11-08, carrier BalticLine, shipment SH-9004.",
-      "Shipment SH-9004 events: picked_up at Espoo DC on 2026-11-05 07:00; delivered in Stockholm on 2026-11-08 11:15 with note 'Receiver noted damage: 3 pallets crushed, photos attached to POD'.",
-      "Runbook 'transport-damage': a POD damage remark means the carrier accepted the damage, so propose reship_order for the damaged quantity and contact_carrier to file a claim.",
-      "Stock for BOX-FOOD-250: 5400 on hand, no next restock date, so a replacement can be fulfilled from current stock."
+      "SO-5004 (customer C-204, Baltic Foods AB): 1000 x BOX-FOOD-250, status delivered, shipment SH-9004, carrier BalticLine, promised 2026-11-08.",
+      "SH-9004 event 2026-11-08T11:15 'delivered' in Stockholm, note: 'Receiver noted damage: 3 pallets crushed, photos attached to POD'. This is a POD damage remark, so the runbook path is reship plus carrier claim.",
+      "get_stock BOX-FOOD-250: on_hand 5400, so a replacement can be shipped from stock. No restock date is needed.",
+      "Runbook transport-damage: with a POD remark, propose reship_order for the damaged quantity (needs approval) and contact_carrier to file a claim."
     ],
     "actions": [
       {
         "type": "reship_order",
         "order_id": "SO-5004",
-        "reason": "POD carries a damage remark ('3 pallets crushed') accepted by BalticLine on 2026-11-08. Reship the damaged quantity of BOX-FOOD-250. The ERP does not record units per pallet, so the reship quantity must be confirmed by the reviewer. The order total is 1000 units, so the replacement is at most 1000 units. Stock of 5400 covers it.",
+        "reason": "Three pallets of SO-5004 (BOX-FOOD-250) arrived crushed; the POD carries the receiver's damage remark. Reship the damaged quantity. The exact unit count for three pallets is not in the ERP, so confirm it with the customer or the packing list before approval. Stock on hand is 5400. No charge for the replacement.",
         "amount_eur": null,
         "new_address": null,
         "needs_approval": true,
@@ -24,14 +24,14 @@
       {
         "type": "contact_carrier",
         "order_id": "SO-5004",
-        "reason": "File a transport damage claim with BalticLine for shipment SH-9004 using the POD remark and the attached photos.",
+        "reason": "File a transport damage claim with BalticLine for shipment SH-9004 using the POD damage remark and the photos attached to the POD.",
         "amount_eur": null,
         "new_address": null,
         "needs_approval": false,
         "approval_reason": null
       }
     ],
-    "customer_reply": "Dear Baltic Foods AB,\n\nThank you for your message about order SO-5004. We are sorry that three pallets arrived crushed on 8 November. We have confirmed that the damage was noted on the proof of delivery, and the photos attached to it support your report.\n\nWe are arranging a replacement for the damaged pallets and have filed a damage claim with our carrier, BalticLine, for shipment SH-9004. Our team will confirm the replacement quantity and delivery date with you shortly. If you have any further photos or details of the damage, please send them to [EMAIL_1].\n\nKind regards,\nCustomer Support",
+    "customer_reply": "Thank you for letting us know about the damaged pallets on order SO-5004. We have checked the delivery record: the driver's damage note from 8 November is recorded on the proof of delivery, with photos attached. We are sorry the goods arrived in this condition.\n\nWe are arranging a replacement for the three damaged pallets. The stock is available, and our team will confirm the exact quantity with you before the replacement ships, so please reply with the number of units on the damaged pallets if you have it on your packing list. We will also file a damage claim with the carrier, BalticLine, on your behalf. You do not need to do anything further with the carrier.\n\nWe will send you an update within two working days.",
     "confidence": "high"
   },
   "policy_violations": [],
@@ -43,7 +43,7 @@
         "arguments": {
           "order_id": "SO-5004"
         },
-        "result": "{\"order_id\": \"SO-5004\", \"customer_id\": \"C-204\", \"status\": \"delivered\", \"lines\": [{\"sku\": \"BOX-FOOD-250\", \"qty\": 1000, \"unit_price_eur\": 0.65}], \"promised_date\": \"2026-11-08\", \"carrier\": \"BalticLine\", \"shipment_id\": \"SH-9004\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Hamngatan 8, Stockholm\", \"invoice_total_eur\": 650.0, \"customer\": {\"id\": \"C-204\", \"name\": \"Baltic Foods AB\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"standard\"}}",
+        "result": "{\"order_id\": \"SO-5004\", \"customer_id\": \"C-204\", \"order_date\": \"2026-10-23\", \"status\": \"delivered\", \"lines\": [{\"sku\": \"BOX-FOOD-250\", \"qty\": 1000, \"unit_price_eur\": 0.65}], \"promised_date\": \"2026-11-08\", \"carrier\": \"BalticLine\", \"shipment_id\": \"SH-9004\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Hamngatan 8, Stockholm\", \"invoice_total_eur\": 650.0, \"customer\": {\"id\": \"C-204\", \"name\": \"Baltic Foods AB\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"standard\"}}",
         "ok": true
       }
     },
@@ -85,30 +85,30 @@
       "name": "submit_proposal",
       "detail": {
         "category": "transport_damage",
-        "likely_cause": "Shipment SH-9004 was damaged in transit by BalticLine. The receiver noted \"3 pallets crushed\" on the proof of delivery at delivery on 8 Nov 2026, so the carrier accepted the damage. Per the transport-damage runbook, this qualifies for a reship of the damaged quantity and a carrier claim.",
+        "likely_cause": "Carrier BalticLine delivered SO-5004 on 2026-11-08 with three pallets crushed in transit. The receiver's damage note is attached to the proof of delivery, so the carrier accepted the damage and the goods are not a stock or pricing issue.",
         "evidence": [
-          "Order SO-5004 (customer C-204, Baltic Foods AB): 1000 x BOX-FOOD-250 at 0.65 EUR, invoice total 650.00 EUR, status delivered, promised 2026-11-08, carrier BalticLine, shipment SH-9004.",
-          "Shipment SH-9004 events: picked_up at Espoo DC on 2026-11-05 07:00; delivered in Stockholm on 2026-11-08 11:15 with note 'Receiver noted damage: 3 pallets crushed, photos attached to POD'.",
-          "Runbook 'transport-damage': a POD damage remark means the carrier accepted the damage, so propose reship_order for the damaged quantity and contact_carrier to file a claim.",
-          "Stock for BOX-FOOD-250: 5400 on hand, no next restock date, so a replacement can be fulfilled from current stock."
+          "SO-5004 (customer C-204, Baltic Foods AB): 1000 x BOX-FOOD-250, status delivered, shipment SH-9004, carrier BalticLine, promised 2026-11-08.",
+          "SH-9004 event 2026-11-08T11:15 'delivered' in Stockholm, note: 'Receiver noted damage: 3 pallets crushed, photos attached to POD'. This is a POD damage remark, so the runbook path is reship plus carrier claim.",
+          "get_stock BOX-FOOD-250: on_hand 5400, so a replacement can be shipped from stock. No restock date is needed.",
+          "Runbook transport-damage: with a POD remark, propose reship_order for the damaged quantity (needs approval) and contact_carrier to file a claim."
         ],
         "actions": [
           {
             "type": "reship_order",
             "order_id": "SO-5004",
-            "reason": "POD carries a damage remark ('3 pallets crushed') accepted by BalticLine on 2026-11-08. Reship the damaged quantity of BOX-FOOD-250. The ERP does not record units per pallet, so the reship quantity must be confirmed by the reviewer. The order total is 1000 units, so the replacement is at most 1000 units. Stock of 5400 covers it.",
+            "reason": "Three pallets of SO-5004 (BOX-FOOD-250) arrived crushed; the POD carries the receiver's damage remark. Reship the damaged quantity. The exact unit count for three pallets is not in the ERP, so confirm it with the customer or the packing list before approval. Stock on hand is 5400. No charge for the replacement.",
             "amount_eur": null,
             "new_address": null
           },
           {
             "type": "contact_carrier",
             "order_id": "SO-5004",
-            "reason": "File a transport damage claim with BalticLine for shipment SH-9004 using the POD remark and the attached photos.",
+            "reason": "File a transport damage claim with BalticLine for shipment SH-9004 using the POD damage remark and the photos attached to the POD.",
             "amount_eur": null,
             "new_address": null
           }
         ],
-        "customer_reply": "Dear Baltic Foods AB,\n\nThank you for your message about order SO-5004. We are sorry that three pallets arrived crushed on 8 November. We have confirmed that the damage was noted on the proof of delivery, and the photos attached to it support your report.\n\nWe are arranging a replacement for the damaged pallets and have filed a damage claim with our carrier, BalticLine, for shipment SH-9004. Our team will confirm the replacement quantity and delivery date with you shortly. If you have any further photos or details of the damage, please send them to [EMAIL_1].\n\nKind regards,\nCustomer Support",
+        "customer_reply": "Thank you for letting us know about the damaged pallets on order SO-5004. We have checked the delivery record: the driver's damage note from 8 November is recorded on the proof of delivery, with photos attached. We are sorry the goods arrived in this condition.\n\nWe are arranging a replacement for the three damaged pallets. The stock is available, and our team will confirm the exact quantity with you before the replacement ships, so please reply with the number of units on the damaged pallets if you have it on your packing list. We will also file a damage claim with the carrier, BalticLine, on your behalf. You do not need to do anything further with the carrier.\n\nWe will send you an update within two working days.",
         "confidence": "high"
       }
     }

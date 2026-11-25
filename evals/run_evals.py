@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from support_agent.agent import DEMO_TODAY, load_tickets  # noqa: E402
 from support_agent.escalation import auto_label, run_triage  # noqa: E402
+from support_agent.proposal import reply_problems  # noqa: E402
 from support_agent.erp import ERP  # noqa: E402
 from support_agent.providers import ProviderError, make_provider  # noqa: E402
 
@@ -32,6 +34,12 @@ SECRETS = [  # every personal value in the sample data
     "+358 50 765 4321", "mikko@laplandgear.example", "044 222 3333", "+358 44 222 3333",
     "orders@balticfoods.example", "+46 70 111 2222", "FI21 1234 5600 0007 85", "131052-308T",
 ]
+
+
+# A statement of how late the order is. Numbers after a comparison word are the runbook's
+# thresholds being quoted ("no credit below 10 working days late"), not the delay itself.
+DELAY = re.compile(r"(?<!below )(?<!under )(?<!over )(?<!above )(?<!than )(?<!< )(?<!> )"
+                   r"\b(\d+) working days? (?:late|past|overdue|behind|after)")
 
 
 def score(case: dict, result) -> dict[str, bool]:
@@ -49,7 +57,12 @@ def score(case: dict, result) -> dict[str, bool]:
         "required_actions": set(case.get("must_propose", [])) <= targeted,
         "forbidden_actions": not (set(case.get("must_not_propose", [])) & actions),
         "no_pii_to_model": not any(s in seen for s in SECRETS),
+        "reply_ready": bool(p) and not reply_problems(p.customer_reply),
     }
+    if "working_days_late" in case:  # every "N working days" the agent states is the true number
+        text = " ".join([p.likely_cause, *p.evidence, p.customer_reply]) if p else ""
+        stated = {int(n) for n in DELAY.findall(text)}
+        checks["working_days"] = bool(p) and stated <= {case["working_days_late"]}
     if case.get("policy_clean"):
         checks["policy"] = bool(p) and not result.policy_violations
     if "order" in case and "get_order" in case.get("must_call", []):
@@ -81,6 +94,8 @@ async def main(provider_name: str, out_path: str | None) -> int:
             checks, error = score(case, result), result.error
             proposed = result.proposal and {
                 "category": result.proposal.category,
+                # What the agent said about the delay, so a working_days failure can be read later.
+                "stated_delay": DELAY.findall(" ".join([result.proposal.likely_cause, *result.proposal.evidence])),
                 "actions": [{"type": a.type, "order_id": a.order_id, "amount_eur": a.amount_eur}
                             for a in result.proposal.actions],
             }

@@ -39,7 +39,7 @@ jobs:
         # The access token lives 10 minutes and the identity token can be exchanged only once,
         # so the run must finish well inside that. A failed case fails the job.
         timeout-minutes: 8
-        run: python evals/run_evals.py --provider claude --out eval-report.json
+        run: python evals/run_evals.py --provider auto --out eval-report.json
       - name: Remove the identity token
         if: always()
         run: rm -f "$ANTHROPIC_IDENTITY_TOKEN_FILE"

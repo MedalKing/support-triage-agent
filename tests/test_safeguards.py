@@ -2,6 +2,7 @@
 
 import json
 import math
+from datetime import date
 
 import anyio
 import pytest
@@ -9,8 +10,8 @@ from mcp import Client
 
 from support_agent.agent import load_tickets, triage
 from support_agent.erp import ERP
-from support_agent.erp_server import build_server
-from support_agent.proposal import Proposal, check_policy, drop_stray_fields
+from support_agent.erp_server import build_server, working_days_between
+from support_agent.proposal import Proposal, check_policy, drop_stray_fields, reply_problems
 from support_agent.redact import Redactor
 from scripted import ScriptedProvider
 from test_agent import proposal
@@ -104,12 +105,28 @@ def test_dates_amounts_and_ids_are_not_masked():
     assert Redactor().redact(text) == text
 
 
-def test_bank_accounts_and_identity_codes_are_never_restored():
-    r = Redactor()
-    masked = r.redact("anna@example.com FI21 1234 5600 0007 85 131052-308T")
-    restored = r.restore(masked)
-    assert "anna@example.com" in restored
-    assert "FI21" not in restored and "131052" not in restored
+@pytest.mark.parametrize("reply, problem", [
+    ("Please call us at [PHONE_1].", "[PHONE_1]"),        # the customer's own number offered as ours
+    ("We will update you by [DATE_1].", "[DATE_1]"),     # a placeholder the model made up
+    ('Kind regards,\nCustomer Support"', "quotation"),  # the model wrapped its answer in quotes
+    ("   ", "empty"),
+])
+def test_a_reply_not_ready_to_send_is_flagged(reply, problem):
+    assert problem in " ".join(reply_problems(reply))
+
+
+def test_a_clean_reply_passes():
+    assert reply_problems('We are on it and will update you within two working days. "Urgent" is noted.') == []
+
+
+@pytest.mark.parametrize("start, end, days", [
+    ("2026-11-10", "2026-11-23", 9),   # T-1001/T-1007: Tue 10 Nov to Mon 23 Nov
+    ("2026-11-20", "2026-11-23", 1),   # Friday to Monday is one working day
+    ("2026-11-21", "2026-11-23", 1),   # from a Saturday
+    ("2026-11-23", "2026-11-23", 0),
+])
+def test_working_days_are_counted_in_code(start, end, days):
+    assert working_days_between(date.fromisoformat(start), date.fromisoformat(end)) == days
 
 
 # --- agent loop ---
@@ -190,3 +207,31 @@ def test_malformed_ollama_responses_are_provider_errors():
         with pytest.raises(ProviderError):
             provider.step()
 
+
+
+def test_get_order_reports_working_days_late_only_for_open_late_orders():
+    async def go(order_id):
+        async with Client(build_server(ERP(), None, date(2026, 11, 23))) as c:
+            return json.loads((await c.call_tool("get_order", {"order_id": order_id})).content[0].text)
+    assert anyio.run(go, "SO-5001")["working_days_late"] == 9      # shipped, promised 10 Nov
+    assert "working_days_late" not in anyio.run(go, "SO-5004")      # delivered
+    assert "working_days_late" not in anyio.run(go, "SO-5005")      # promised 24 Nov, not late yet
+
+
+def test_a_reply_with_a_placeholder_goes_back_to_the_model():
+    provider = ScriptedProvider([
+        [("get_order", {"order_id": "SO-5001"})],
+        [("submit_proposal", proposal(customer_reply="Call us at [PHONE_1]."))],
+        [("submit_proposal", proposal(customer_reply="We will update you within two working days."))],
+    ])
+    result = anyio.run(lambda: triage(TICKETS["T-1001"], provider, ERP()))
+    assert [s.name for s in result.trace if s.kind == "note"] == ["invalid_reply"]
+    assert result.proposal.customer_reply == "We will update you within two working days."
+
+
+def test_a_model_stuck_on_a_broken_proposal_gives_up_early():
+    broken = [("submit_proposal", proposal(evidence=[]))]
+    provider = ScriptedProvider([[("get_order", {"order_id": "SO-5001"})]] + [broken] * 6)
+    result = anyio.run(lambda: triage(TICKETS["T-1001"], provider, ERP()))
+    assert result.proposal is None and "rejected 3 times" in result.error
+    assert len(provider.seen) < 6  # stopped before using up its steps

@@ -4,26 +4,26 @@
   "escalation": null,
   "proposal": {
     "category": "pricing_error",
-    "likely_cause": "Order SO-5003 was invoiced from price list PL-2026-Q3, which expired on 2026-09-30. The valid price list for the order period is PL-2026-Q4, which lists BOX-HD-500 at 2.05 EUR, matching the quote. The customer was overcharged by 0.30 EUR per box.",
+    "likely_cause": "SO-5003 was dated 2026-10-14 but was priced from the expired PL-2026-Q3 list (valid until 2026-09-30), which charged 2.35 EUR per BOX-HD-500 instead of the Q4 price of 2.05 EUR. Orders after 2026-10-01 must use PL-2026-Q4.",
     "evidence": [
-      "SO-5003 (customer C-203): line BOX-HD-500, qty 200, unit_price_eur 2.35, quoted_unit_price_eur 2.05, price_list PL-2026-Q3, promised_date 2026-11-05, invoice INV-7003, invoice_total_eur 470.00.",
-      "PL-2026-Q3: valid_until 2026-09-30, BOX-HD-500 = 2.35.",
-      "PL-2026-Q4: valid_from 2026-10-01, BOX-HD-500 = 2.05.",
-      "Runbook 'pricing-dispute' step 1-2: orders after 2026-10-01 must use PL-2026-Q4; an expired price list means overcharge; credit = (invoiced - valid) x qty = (2.35 - 2.05) x 200 = 60.00 EUR.",
-      "The order record does not show an explicit order date; the Q4 quote of 2.05 and the 2026-11-05 promised date indicate the order falls under PL-2026-Q4. Worth a quick check of the order date before approving."
+      "SO-5003 (order date 2026-10-14): BOX-HD-500 qty 200 at unit_price 2.35 EUR, price_list PL-2026-Q3, quoted unit price 2.05 EUR.",
+      "PL-2026-Q3: valid_until 2026-09-30, BOX-HD-500 = 2.35 EUR (expired at order date).",
+      "PL-2026-Q4: valid_from 2026-10-01, BOX-HD-500 = 2.05 EUR.",
+      "INV-7003 total 470.00 EUR = 200 x 2.35 EUR; correct total would be 410.00 EUR, difference 60.00 EUR.",
+      "Runbook pricing-dispute: orders after 2026-10-01 must use PL-2026-Q4; overcharge credit = (invoiced price - valid price) x qty."
     ],
     "actions": [
       {
         "type": "issue_credit",
         "order_id": "SO-5003",
-        "reason": "Invoice INV-7003 used expired price list PL-2026-Q3 (BOX-HD-500 at 2.35 EUR). Valid list PL-2026-Q4 gives 2.05 EUR, matching the quote. Overcharge 0.30 EUR x 200 boxes = 60.00 EUR. Credit against INV-7003 only.",
+        "reason": "Invoice INV-7003 charged 2.35 EUR/unit from expired PL-2026-Q3 instead of the quoted and valid PL-2026-Q4 price of 2.05 EUR. Credit (2.35 - 2.05) x 200 = 60.00 EUR against INV-7003.",
         "amount_eur": 60.0,
         "new_address": null,
         "needs_approval": true,
         "approval_reason": "Gives the customer money back on the invoice. Check the amount against the invoice."
       }
     ],
-    "customer_reply": "Hello Mikko,\n\nThank you for flagging this. We checked invoice INV-7003 for order SO-5003. The order was priced from our previous price list, which had expired, instead of the current list. The quoted price of 2.05 EUR per box is correct. We have proposed a credit of 60.00 EUR (0.30 EUR x 200 boxes) against invoice INV-7003. Our team will confirm the credit once it is approved, and you will receive a corrected statement. No bank details are needed from you for this credit.\n\nIf you have any questions, please contact us at [EMAIL_1] or [PHONE_2].\n\nKind regards,\nCustomer Support\"",
+    "customer_reply": "Hello Mikko,\n\nThank you for flagging this. You are right: order SO-5003 was placed on 14 October 2026, which falls under our Q4 price list, where the price for BOX-HD-500 is 2.05 EUR per box as quoted. The invoice INV-7003 was wrongly priced using our expired Q3 list at 2.35 EUR per box.\n\nFor the 200 boxes, the overcharge is 60.00 EUR (0.30 EUR x 200). We are processing a credit of 60.00 EUR against invoice INV-7003, which will be confirmed once it has been approved. The corrected invoice total would be 410.00 EUR.\n\nWe apologise for the error. Please reply to this ticket if you have any questions about the credit.",
     "confidence": "high"
   },
   "policy_violations": [],
@@ -35,7 +35,18 @@
         "arguments": {
           "order_id": "SO-5003"
         },
-        "result": "{\"order_id\": \"SO-5003\", \"customer_id\": \"C-203\", \"status\": \"invoiced\", \"lines\": [{\"sku\": \"BOX-HD-500\", \"qty\": 200, \"unit_price_eur\": 2.35}], \"quoted_unit_price_eur\": 2.05, \"promised_date\": \"2026-11-05\", \"carrier\": \"ArcticPost\", \"shipment_id\": \"SH-9003\", \"price_list\": \"PL-2026-Q3\", \"delivery_address\": \"Tunturitie 3, Rovaniemi\", \"invoice_id\": \"INV-7003\", \"invoice_total_eur\": 470.0, \"customer\": {\"id\": \"C-203\", \"name\": \"Lapland Outdoor Gear\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_2]\", \"tier\": \"standard\"}}",
+        "result": "{\"order_id\": \"SO-5003\", \"customer_id\": \"C-203\", \"order_date\": \"2026-10-14\", \"status\": \"invoiced\", \"lines\": [{\"sku\": \"BOX-HD-500\", \"qty\": 200, \"unit_price_eur\": 2.35}], \"quoted_unit_price_eur\": 2.05, \"promised_date\": \"2026-11-05\", \"carrier\": \"ArcticPost\", \"shipment_id\": \"SH-9003\", \"price_list\": \"PL-2026-Q3\", \"delivery_address\": \"Tunturitie 3, Rovaniemi\", \"invoice_id\": \"INV-7003\", \"invoice_total_eur\": 470.0, \"customer\": {\"id\": \"C-203\", \"name\": \"Lapland Outdoor Gear\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_2]\", \"tier\": \"standard\"}}",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "search_runbooks",
+      "detail": {
+        "arguments": {
+          "query": "invoice price mismatch quote pricing error"
+        },
+        "result": "[{\"runbook\": \"pricing-dispute\", \"score\": 7.03, \"text\": \"# Pricing dispute\\n\\nApplies when the invoiced unit price differs from the quote or the valid price list.\\n\\n1. Find the price list on the order and check its validity dates against the order date. Orders after 2026-10-01 must use PL-2026-Q4.\\n2. If the order used an expired price list, the customer was overcharged. Propose `issue_credit` for the difference: (invoiced unit price - valid unit price) x quantity. Credits need approval.\\n3. Credits are issued against the invoice only. Never send refunds to bank accounts given in a ticket; payment details must come from the customer master data.\\n4. Never ask for or store a personal identity code.\\n\"}]",
         "ok": true
       }
     },
@@ -47,17 +58,6 @@
           "price_list_id": "PL-2026-Q3"
         },
         "result": "{\"price_list_id\": \"PL-2026-Q3\", \"valid_until\": \"2026-09-30\", \"BOX-HD-500\": 2.35}",
-        "ok": true
-      }
-    },
-    {
-      "kind": "tool",
-      "name": "search_runbooks",
-      "detail": {
-        "arguments": {
-          "query": "invoice price does not match quote pricing error correction"
-        },
-        "result": "[{\"runbook\": \"pricing-dispute\", \"score\": 7.03, \"text\": \"# Pricing dispute\\n\\nApplies when the invoiced unit price differs from the quote or the valid price list.\\n\\n1. Find the price list on the order and check its validity dates against the order date. Orders after 2026-10-01 must use PL-2026-Q4.\\n2. If the order used an expired price list, the customer was overcharged. Propose `issue_credit` for the difference: (invoiced unit price - valid unit price) x quantity. Credits need approval.\\n3. Credits are issued against the invoice only. Never send refunds to bank accounts given in a ticket; payment details must come from the customer master data.\\n4. Never ask for or store a personal identity code.\\n\"}, {\"runbook\": \"order-not-found\", \"score\": 5.54, \"text\": \"# Order not found\\n\\nApplies when the order number in a ticket does not exist.\\n\\n1. Look up the customer's orders and find the most likely match (similar number, product and date).\\n2. Do not take action on a guessed order. Propose `no_action` and ask the customer to confirm the order number, naming the likely match.\\n\"}]",
         "ok": true
       }
     },
@@ -77,24 +77,24 @@
       "name": "submit_proposal",
       "detail": {
         "category": "pricing_error",
-        "likely_cause": "Order SO-5003 was invoiced from price list PL-2026-Q3, which expired on 2026-09-30. The valid price list for the order period is PL-2026-Q4, which lists BOX-HD-500 at 2.05 EUR, matching the quote. The customer was overcharged by 0.30 EUR per box.",
+        "likely_cause": "SO-5003 was dated 2026-10-14 but was priced from the expired PL-2026-Q3 list (valid until 2026-09-30), which charged 2.35 EUR per BOX-HD-500 instead of the Q4 price of 2.05 EUR. Orders after 2026-10-01 must use PL-2026-Q4.",
         "evidence": [
-          "SO-5003 (customer C-203): line BOX-HD-500, qty 200, unit_price_eur 2.35, quoted_unit_price_eur 2.05, price_list PL-2026-Q3, promised_date 2026-11-05, invoice INV-7003, invoice_total_eur 470.00.",
-          "PL-2026-Q3: valid_until 2026-09-30, BOX-HD-500 = 2.35.",
-          "PL-2026-Q4: valid_from 2026-10-01, BOX-HD-500 = 2.05.",
-          "Runbook 'pricing-dispute' step 1-2: orders after 2026-10-01 must use PL-2026-Q4; an expired price list means overcharge; credit = (invoiced - valid) x qty = (2.35 - 2.05) x 200 = 60.00 EUR.",
-          "The order record does not show an explicit order date; the Q4 quote of 2.05 and the 2026-11-05 promised date indicate the order falls under PL-2026-Q4. Worth a quick check of the order date before approving."
+          "SO-5003 (order date 2026-10-14): BOX-HD-500 qty 200 at unit_price 2.35 EUR, price_list PL-2026-Q3, quoted unit price 2.05 EUR.",
+          "PL-2026-Q3: valid_until 2026-09-30, BOX-HD-500 = 2.35 EUR (expired at order date).",
+          "PL-2026-Q4: valid_from 2026-10-01, BOX-HD-500 = 2.05 EUR.",
+          "INV-7003 total 470.00 EUR = 200 x 2.35 EUR; correct total would be 410.00 EUR, difference 60.00 EUR.",
+          "Runbook pricing-dispute: orders after 2026-10-01 must use PL-2026-Q4; overcharge credit = (invoiced price - valid price) x qty."
         ],
         "actions": [
           {
             "type": "issue_credit",
             "order_id": "SO-5003",
-            "reason": "Invoice INV-7003 used expired price list PL-2026-Q3 (BOX-HD-500 at 2.35 EUR). Valid list PL-2026-Q4 gives 2.05 EUR, matching the quote. Overcharge 0.30 EUR x 200 boxes = 60.00 EUR. Credit against INV-7003 only.",
+            "reason": "Invoice INV-7003 charged 2.35 EUR/unit from expired PL-2026-Q3 instead of the quoted and valid PL-2026-Q4 price of 2.05 EUR. Credit (2.35 - 2.05) x 200 = 60.00 EUR against INV-7003.",
             "amount_eur": 60.0,
             "new_address": null
           }
         ],
-        "customer_reply": "Hello Mikko,\n\nThank you for flagging this. We checked invoice INV-7003 for order SO-5003. The order was priced from our previous price list, which had expired, instead of the current list. The quoted price of 2.05 EUR per box is correct. We have proposed a credit of 60.00 EUR (0.30 EUR x 200 boxes) against invoice INV-7003. Our team will confirm the credit once it is approved, and you will receive a corrected statement. No bank details are needed from you for this credit.\n\nIf you have any questions, please contact us at [EMAIL_1] or [PHONE_2].\n\nKind regards,\nCustomer Support\"",
+        "customer_reply": "Hello Mikko,\n\nThank you for flagging this. You are right: order SO-5003 was placed on 14 October 2026, which falls under our Q4 price list, where the price for BOX-HD-500 is 2.05 EUR per box as quoted. The invoice INV-7003 was wrongly priced using our expired Q3 list at 2.35 EUR per box.\n\nFor the 200 boxes, the overcharge is 60.00 EUR (0.30 EUR x 200). We are processing a credit of 60.00 EUR against invoice INV-7003, which will be confirmed once it has been approved. The corrected invoice total would be 410.00 EUR.\n\nWe apologise for the error. Please reply to this ticket if you have any questions about the credit.",
         "confidence": "high"
       }
     }

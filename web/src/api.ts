@@ -30,8 +30,22 @@ export type TriageResult = {
   redactions: string[];
   error: string | null;
 };
+export type AuditEntry = {
+  ts: string;
+  approved_by: string;
+  ticket_id: string;
+  type: string;
+  order_id: string;
+  amount_eur: number | null;
+  new_address: string | null;
+};
 
-export type Config = { providers: string[]; access_code_required: boolean; recorded: string[] };
+export type Config = {
+  providers: string[];
+  access_code_required: boolean;
+  recorded: string[];
+  escalated: Record<string, string[]>; // recorded runs redone by the stronger model, with reasons
+};
 
 async function call<T>(path: string, init?: RequestInit, headers: Record<string, string> = {}): Promise<T> {
   const r = await fetch(path, { ...init, headers: { "Content-Type": "application/json", ...headers } });
@@ -46,7 +60,9 @@ export const triage = (id: string, provider: string, accessCode: string) =>
     accessCode ? { "X-Access-Code": accessCode } : {});
 export const recorded = (id: string) => call<TriageResult>(`/api/tickets/${id}/recorded`);
 export const approve = (id: string, proposal_id: string, action_indexes: number[]) =>
-  call<{ applied: unknown[] }>(`/api/tickets/${id}/approve`, {
+  call<{ applied: AuditEntry[] }>(`/api/tickets/${id}/approve`, {
     method: "POST",
     body: JSON.stringify({ proposal_id, action_indexes, approved_by: "demo reviewer" }),
   });
+export const auditLog = () => call<AuditEntry[]>("/api/audit");
+export const reset = () => call<{ status: string }>("/api/reset", { method: "POST" });

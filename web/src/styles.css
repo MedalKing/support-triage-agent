@@ -34,3 +34,26 @@ pre { white-space: pre-wrap; font-size: 13px; margin: 4px 0; }
 .step { margin-top: 10px; }
 @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } aside { border-right: none; border-bottom: 1px solid var(--line); } }
 .escalation { border: 1px solid var(--warn); border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 14px; }
+.small { font-size: 13px; }
+button.home { all: unset; cursor: pointer; font: inherit; color: var(--text); }
+button.home:focus-visible { outline: 2px solid var(--accent); }
+.scenario { color: var(--accent); margin-left: 4px; }
+.audit { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); }
+.audit h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.audit .entry { padding: 4px 0; }
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); margin-top: 8px; }
+.intro p { line-height: 1.5; }
+.flow { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 12px 0 0; list-style: none; counter-reset: f; }
+.flow li { counter-increment: f; font-size: 13px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; }
+.flow li::before { content: counter(f) ". "; color: var(--muted); }
+button.card.tour { display: grid; grid-template-columns: 28px 1fr; gap: 2px 8px; width: 100%; text-align: left;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); cursor: pointer; line-height: 1.45; }
+button.card.tour:hover { border-color: var(--accent); }
+.tour .step-no { grid-row: span 2; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff;
+  display: grid; place-items: center; font-size: 13px; }
+.ticket-body { line-height: 1.5; }
+.live { margin-top: 12px; }
+.live summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.live .row { margin-top: 8px; flex-wrap: wrap; }
+input[type=password] { padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+.notice { border-left: 3px solid var(--accent); padding: 6px 10px; font-size: 14px; }

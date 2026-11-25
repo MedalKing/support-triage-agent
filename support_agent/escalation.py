@@ -25,7 +25,13 @@ from .providers import ClaudeProvider, Provider, ProviderError, make_provider
 
 FAST_MODEL = "claude-haiku-5-5"
 STRONG_MODEL = "claude-opus-5-5"
-CORRECTION_NOTES = {"invalid_proposal", "proposal_without_lookup", "dropped_field"}
+# A fixed-up reply (invalid_reply) is not here on purpose: wording is cheap to correct and says
+# nothing about whether the investigation was right.
+CORRECTION_NOTES = {
+    "invalid_proposal": "a proposal that broke the schema",
+    "proposal_without_lookup": "a proposal before looking anything up",
+    "dropped_field": "an amount or address on the wrong action",
+}
 
 
 def escalation_reasons(result: TriageResult) -> list[str]:
@@ -42,9 +48,9 @@ def escalation_reasons(result: TriageResult) -> list[str]:
     types = {a.type for a in result.proposal.actions}
     if "no_action" in types and len(types) > 1:
         reasons.append("the proposal mixes no_action with real actions")
-    corrected = sorted({s.name for s in result.trace if s.kind == "note" and s.name in CORRECTION_NOTES})
+    corrected = sorted({CORRECTION_NOTES[s.name] for s in result.trace if s.kind == "note" and s.name in CORRECTION_NOTES})
     if corrected:
-        reasons.append("the model had to be corrected: " + ", ".join(corrected))
+        reasons.append("the model had to be corrected (" + "; ".join(corrected) + ")")
     return reasons
 
 

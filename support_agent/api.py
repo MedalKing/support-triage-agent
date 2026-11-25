@@ -121,12 +121,24 @@ def check_access_code(code: str | None) -> None:
 
 # --- endpoints -----------------------------------------------------------------------
 
+def recorded_escalations() -> dict[str, list[str]]:
+    """Which recorded runs were redone by the stronger model, and why. The page's tour uses it,
+    so it always points at a run that really escalated, whichever that was when recorded."""
+    out = {}
+    for path in sorted(RECORDED_DIR.glob("*.json")):
+        escalation = json.loads(path.read_text(encoding="utf-8")).get("escalation")
+        if escalation:
+            out[path.stem] = escalation["reasons"]
+    return out
+
+
 @app.get("/api/config")
 def config() -> dict[str, Any]:
     return {
         "providers": providers_offered(),
         "access_code_required": bool(os.environ.get("DEMO_ACCESS_CODE")),
         "recorded": sorted(p.stem for p in RECORDED_DIR.glob("*.json")),
+        "escalated": recorded_escalations(),
     }
 
 
@@ -176,14 +188,12 @@ def load_recorded(ticket: dict[str, Any], saved: dict[str, Any], erp: ERP) -> Tr
         raw["actions"] = [{k: v for k, v in a.items() if k not in ("needs_approval", "approval_reason")}
                           for a in raw["actions"]]
         proposal = Proposal.model_validate(raw)
-    # Saved with placeholders in the reply. Redacting the ticket again gives the same mapping,
-    # so the reply can be restored for the reviewer as in a live run.
     redactor = Redactor()
     redactor.redact(ticket_message(ticket))
     result = TriageResult(
         ticket["id"], saved["provider"], proposal, [],
         [TraceStep(t["kind"], t["name"], t["detail"]) for t in saved["trace"]], redactor,
-        escalation=saved.get("escalation"), recorded=True,
+        escalation=saved.get("escalation"), recorded=True, saved_redactions=saved.get("redactions"),
     )
     if proposal is not None:  # policy is checked again against this visitor's ERP
         result.policy_violations = check_policy(proposal, ticket["customer_id"], erp, result.proposal_id)
@@ -241,6 +251,13 @@ async def approve(ticket_id: str, approval: Approval, s: Session = Depends(sessi
 @app.get("/api/audit")
 def audit(s: Session = Depends(session)) -> list[dict[str, Any]]:
     return s.erp.audit_log
+
+
+@app.post("/api/reset")
+def reset(s: Session = Depends(session)) -> dict[str, str]:
+    """Start this visitor's demo over: a fresh copy of the sample ERP, no proposals, empty log."""
+    s.erp, s.results = ERP(), {}
+    return {"status": "reset"}
 
 
 @app.get("/healthz")

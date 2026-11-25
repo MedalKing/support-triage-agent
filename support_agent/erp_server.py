@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import date, timedelta
 
 from mcp.server.mcpserver import MCPServer
 
@@ -20,7 +21,23 @@ from .erp import ERP
 from .retrieval import load_runbooks
 
 
-def build_server(erp: ERP | None = None, customer_id: str | None = None) -> MCPServer:
+# Orders in these states have not reached the customer yet, so they can be late.
+OPEN_STATUSES = {"confirmed", "shipped", "partially_shipped"}
+
+
+def working_days_between(start: date, end: date) -> int:
+    """Working days (Monday to Friday) after `start` up to and including `end`."""
+    days, day = 0, start
+    while day < end:
+        day += timedelta(days=1)
+        days += day.weekday() < 5
+    return days
+
+
+def build_server(erp: ERP | None = None, customer_id: str | None = None,
+                 as_of: date | None = None) -> MCPServer:
+    """With as_of, an open order past its promised date gets `working_days_late`, counted in
+    code: models miscount calendar arithmetic, and the runbook thresholds depend on it."""
     erp = erp or ERP()
     runbooks = load_runbooks()
     server = MCPServer(name="erp", instructions="Read-only ERP lookups and support runbooks.")
@@ -36,7 +53,12 @@ def build_server(erp: ERP | None = None, customer_id: str | None = None) -> MCPS
         """Get an order with its lines, dates, carrier, shipment id, price list and customer."""
         order = erp.get_order(order_id)
         # Another customer's order looks the same as a missing one: nothing leaks either way.
-        return dump(order) if allowed(order) else dump({"error": f"order {order_id} not found"})
+        if not allowed(order):
+            return dump({"error": f"order {order_id} not found"})
+        promised = date.fromisoformat(order["promised_date"])
+        if as_of is not None and order["status"] in OPEN_STATUSES and promised < as_of:
+            order = {**order, "working_days_late": working_days_between(promised, as_of)}
+        return dump(order)
 
     @server.tool()
     def list_customer_orders(customer_id: str) -> str:
@@ -78,4 +100,6 @@ def build_server(erp: ERP | None = None, customer_id: str | None = None) -> MCPS
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--customer", help="only serve this customer's orders and shipments")
-    build_server(customer_id=parser.parse_args().customer).run("stdio")
+    parser.add_argument("--as-of", type=date.fromisoformat, help="today's date, for working_days_late")
+    args = parser.parse_args()
+    build_server(customer_id=args.customer, as_of=args.as_of).run("stdio")

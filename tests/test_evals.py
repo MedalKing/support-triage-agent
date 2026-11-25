@@ -78,3 +78,16 @@ def test_extra_actions_fail_the_case():
                                             actions=[_credit(60.0), _credit(None, type_="expedite_shipment")]))]]
     assert not _scored("T-1003", script, PRICING)["only_allowed_actions"]
 
+
+
+def test_a_wrong_working_day_count_fails_the_case():
+    ticket = {t["id"]: t for t in load_tickets()}["T-1001"]
+    script = [
+        [("get_order", {"order_id": "SO-5001"})],
+        [("submit_proposal", proposal(likely_cause="Held at the hub; the order is 11 working days late."))],
+    ]
+    result = anyio.run(lambda: triage(ticket, ScriptedProvider(script), ERP()))
+    case = {"category": "carrier_delay", "working_days_late": 9}
+    assert run_evals.score(case, result)["working_days"] is False
+    result.proposal.likely_cause = "Held at the hub; 9 working days late. No credit below 10 working days late."
+    assert run_evals.score(case, result)["working_days"] is True  # a quoted threshold is not the delay
