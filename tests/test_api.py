@@ -38,6 +38,7 @@ def approve(client, proposal_id, indexes, approved_by="reviewer"):
 def test_triage_then_approve(client, monkeypatch):
     body = triage(client, monkeypatch, CREDIT)
     assert body["proposal"]["actions"][0]["needs_approval"] is True
+    assert "money back" in body["proposal"]["actions"][0]["approval_reason"]
     assert body["policy_violations"] == []
     r = approve(client, body["proposal_id"], [0])
     assert r.status_code == 200 and r.json()["applied"][0]["amount_eur"] == 60.0

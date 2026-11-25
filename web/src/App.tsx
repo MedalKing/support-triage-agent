@@ -114,6 +114,11 @@ export default function App() {
                 </ul>
 
                 <h3>Actions</h3>
+                <p className="muted">
+                  Nothing happens until you press Approve selected. Free requests, such as asking the carrier for news,
+                  are ticked for you. Actions that cost money or change the order are marked “needs approval” and left
+                  for you to tick; each one says what to check.
+                </p>
                 {blocked && (
                   <div className="error">
                     Blocked by policy:
@@ -139,7 +144,8 @@ export default function App() {
                     {a.new_address && <> · to {a.new_address}</>}
                     {a.needs_approval && <span className="tag warn">needs approval</span>}
                     {result.applied.includes(i) && <span className="tag">applied</span>}
-                    <div className="muted">{a.reason}</div>
+                    <div className="muted">Agent's reason: {a.reason}</div>
+                    {a.approval_reason && <div className="why">Why it needs approval: {a.approval_reason}</div>}
                   </label>
                 ))}
                 <button onClick={submit} disabled={blocked || busy || checked.length === 0}>

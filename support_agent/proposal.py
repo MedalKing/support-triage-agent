@@ -21,7 +21,14 @@ ActionType = Literal[
     "update_delivery_address", "no_action",
 ]
 # Actions that change something for the customer or cost money need a person's approval.
-NEEDS_APPROVAL = {"expedite_shipment", "reship_order", "issue_credit", "update_delivery_address"}
+# The reason is shown to the reviewer next to the action, so a new user knows what to check.
+APPROVAL_REASONS = {
+    "expedite_shipment": "Faster freight costs us extra. Check that the delay is long enough to justify it.",
+    "reship_order": "Sends new goods at our cost. Check the quantity and that the first delivery really fell short.",
+    "issue_credit": "Gives the customer money back on the invoice. Check the amount against the invoice.",
+    "update_delivery_address": "Changes where the order goes. Check the new address with the customer's message.",
+}
+NEEDS_APPROVAL = set(APPROVAL_REASONS)
 MAX_AGENT_CREDIT_SHARE = 0.25  # larger credits are out of scope for the agent
 
 

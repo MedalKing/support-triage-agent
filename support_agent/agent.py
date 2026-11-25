@@ -21,7 +21,7 @@ from pydantic import ValidationError
 
 from .erp import ERP
 from .erp_server import build_server
-from .proposal import NEEDS_APPROVAL, SUBMIT_PROPOSAL_TOOL, Proposal, check_policy, drop_stray_fields
+from .proposal import APPROVAL_REASONS, NEEDS_APPROVAL, SUBMIT_PROPOSAL_TOOL, Proposal, check_policy, drop_stray_fields
 from .providers import Provider, ToolCall, ToolResult, ToolSpec
 from .redact import Redactor
 
@@ -100,6 +100,7 @@ class TriageResult:
                 proposal["customer_reply"] = self.redactor.restore(proposal["customer_reply"])
             for action in proposal["actions"]:
                 action["needs_approval"] = action["type"] in NEEDS_APPROVAL
+                action["approval_reason"] = APPROVAL_REASONS.get(action["type"])
         return {
             "ticket_id": self.ticket_id,
             "proposal_id": self.proposal_id,

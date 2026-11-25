@@ -26,6 +26,7 @@ button:disabled { opacity: .5; cursor: default; }
 .muted { color: var(--muted); font-size: 14px; }
 .tag { font-size: 12px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line); margin-left: 6px; font-weight: normal; }
 .tag.warn { color: var(--warn); border-color: var(--warn); }
+.why { color: var(--warn); font-size: 14px; margin-top: 2px; }
 .action { display: block; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .error { background: var(--error-bg); color: var(--error); padding: 10px; border-radius: 6px; }
 pre { white-space: pre-wrap; font-size: 13px; margin: 4px 0; }

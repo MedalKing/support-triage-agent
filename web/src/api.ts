@@ -6,6 +6,7 @@ export type Action = {
   amount_eur: number | null;
   new_address: string | null;
   needs_approval: boolean;
+  approval_reason: string | null;
 };
 export type Proposal = {
   category: string;
