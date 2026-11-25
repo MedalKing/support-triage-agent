@@ -23,6 +23,7 @@
       "proposed": {
         "category": "carrier_delay",
         "stated_delay": [
+          "9",
           "9"
         ],
         "actions": [
@@ -161,19 +162,29 @@
       "ticket": "T-1006",
       "passed": false,
       "checks": {
-        "proposal": false,
+        "proposal": true,
         "category": false,
         "tools": true,
         "required_actions": true,
         "forbidden_actions": true,
         "no_pii_to_model": true,
-        "reply_ready": false,
-        "policy": false,
+        "reply_ready": true,
+        "policy": true,
         "only_allowed_actions": false
       },
-      "proposed": null,
+      "proposed": {
+        "category": "pricing_error",
+        "stated_delay": [],
+        "actions": [
+          {
+            "type": "issue_credit",
+            "order_id": "SO-5003",
+            "amount_eur": 60.0
+          }
+        ]
+      },
       "escalation": null,
-      "error": "The proposal was rejected 3 times."
+      "error": null
     },
     {
       "ticket": "T-1007",

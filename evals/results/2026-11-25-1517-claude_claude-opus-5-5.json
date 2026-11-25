@@ -202,7 +202,6 @@
       "proposed": {
         "category": "carrier_delay",
         "stated_delay": [
-          "9",
           "9"
         ],
         "actions": [

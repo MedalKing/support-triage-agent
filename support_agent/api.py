@@ -134,8 +134,9 @@ def recorded_escalations() -> dict[str, dict[str, Any]]:
         before = saved["trace"][:names.index("escalated")] if "escalated" in names else []
         first = next((s["detail"] for s in before if s["name"] == "submit_proposal"), None)
         final = saved["proposal"]
-        actions = lambda p: sorted(json.dumps([a["type"], a["order_id"], a["amount_eur"], a["new_address"]])  # noqa: E731
-                                   for a in p["actions"]) if p else None
+        # no_action on a different order id is still no action, so it doesn't count as a change.
+        actions = lambda p: sorted(json.dumps([a["type"], None if a["type"] == "no_action" else a["order_id"],  # noqa: E731
+                                               a["amount_eur"], a["new_address"]]) for a in p["actions"]) if p else None
         out[path.stem] = {"reasons": saved["escalation"]["reasons"],
                           "changed": actions(first) != actions(final)}
     return out

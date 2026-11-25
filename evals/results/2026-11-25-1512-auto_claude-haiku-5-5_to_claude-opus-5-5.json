@@ -2,7 +2,7 @@
   "provider": "auto:claude-haiku-5-5->claude-opus-5-5",
   "as_of": "2026-11-23",
   "passed": 8,
-  "escalated": 4,
+  "escalated": 1,
   "total": 8,
   "cases": [
     {
@@ -38,13 +38,7 @@
           }
         ]
       },
-      "escalation": {
-        "from": "claude:claude-haiku-5-5",
-        "to": "claude:claude-opus-5-5",
-        "reasons": [
-          "it gave no usable proposal (the proposal was rejected 3 times)"
-        ]
-      },
+      "escalation": null,
       "error": null
     },
     {
@@ -101,13 +95,7 @@
           }
         ]
       },
-      "escalation": {
-        "from": "claude:claude-haiku-5-5",
-        "to": "claude:claude-opus-5-5",
-        "reasons": [
-          "it gave no usable proposal (the proposal was rejected 3 times)"
-        ]
-      },
+      "escalation": null,
       "error": null
     },
     {
@@ -139,7 +127,13 @@
           }
         ]
       },
-      "escalation": null,
+      "escalation": {
+        "from": "claude:claude-haiku-5-5",
+        "to": "claude:claude-opus-5-5",
+        "reasons": [
+          "the model's confidence was medium"
+        ]
+      },
       "error": null
     },
     {
@@ -166,13 +160,7 @@
           }
         ]
       },
-      "escalation": {
-        "from": "claude:claude-haiku-5-5",
-        "to": "claude:claude-opus-5-5",
-        "reasons": [
-          "the model's confidence was medium"
-        ]
-      },
+      "escalation": null,
       "error": null
     },
     {
@@ -195,19 +183,12 @@
         "actions": [
           {
             "type": "no_action",
-            "order_id": "SO-5006",
+            "order_id": "SO-5060",
             "amount_eur": null
           }
         ]
       },
-      "escalation": {
-        "from": "claude:claude-haiku-5-5",
-        "to": "claude:claude-opus-5-5",
-        "reasons": [
-          "the model's confidence was medium",
-          "it proposed taking no action and real actions at the same time"
-        ]
-      },
+      "escalation": null,
       "error": null
     },
     {

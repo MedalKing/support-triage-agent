@@ -13,7 +13,7 @@ An AI agent that reads customer emails for a made-up packaging company, investig
 
 3. **An escalated run.** The page points to a recorded run that Claude Opus redid after code saw a sign of trouble in Claude Haiku's attempt; the banner says which, and the trace shows both attempts.
 
-The audit log on the left shows what was approved; **Start over** resets your session. Each visitor has their own copy of the data. The recorded runs come from one `auto` run; which tickets escalate varies from run to run (see Results).
+The audit log on the left shows what was approved; **Start over** resets your session. Each visitor has their own copy of the data. The recorded runs come from `auto` runs, in which 4 of 8 tickets escalated; in the eval runs it was 0 to 4 (see Results).
 
 ![Tour: prompt injection, approving a credit, the second credit blocked by policy, and an escalated run](docs/images/tour.gif)
 
@@ -75,12 +75,12 @@ Eight sample emails, scored with deterministic checks: category; lookups that re
 
 | Run (2026-11-25, final suite) | Passed | Escalated to Opus | Result file |
 | --- | --- | --- | --- |
-| `auto`: Claude Haiku 5.5, escalating to Claude Opus 5.5 | 8/8 | 0 | [1459](evals/results/2026-11-25-1459-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
-| `auto`, second run | 8/8 | 4 (T-1001, T-1003: no usable proposal after three rejections; T-1005, T-1006: confidence medium) | [1502](evals/results/2026-11-25-1502-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
-| Claude Haiku 5.5 only | 7/8 | – | [1503](evals/results/2026-11-25-1503-claude_claude-haiku-5-5.json) |
-| Claude Opus 5.5 only (effort medium) | 8/8 | – | [1505](evals/results/2026-11-25-1505-claude_claude-opus-5-5.json) |
+| `auto`: Claude Haiku 5.5, escalating to Claude Opus 5.5 | 8/8 | 1 (T-1004: confidence medium) | [1512](evals/results/2026-11-25-1512-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
+| `auto`, second run | 8/8 | 0 | [1514](evals/results/2026-11-25-1514-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
+| Claude Haiku 5.5 only | 7/8 | – | [1515](evals/results/2026-11-25-1515-claude_claude-haiku-5-5.json) |
+| Claude Opus 5.5 only (effort medium) | 8/8 | – | [1517](evals/results/2026-11-25-1517-claude_claude-opus-5-5.json) |
 
-Runs vary, and which tickets escalate changes from run to run (0 to 4 of 8 in the runs made while finishing this version). Haiku alone failed one case in each of its last two runs: here T-1006, where it never produced a valid proposal (rejected three times), and before that T-1008, where it found the overcharge but proposed no actions at all, with high confidence. In `auto` both hand the ticket to Opus; "no actions at all" became a signal after that T-1008 run. Eight cases can't show how much escalation buys overall; measuring cost, latency and accuracy per model on more cases is the next step. A local Qwen3 8B through Ollama scored 4/8 on an earlier, looser version of the suite (2026-11-24): it missed an action and picked wrong categories, and the policy check blocked its one out-of-policy action (reshipping goods that were out of stock).
+Runs vary, and which tickets escalate changes from run to run (0 to 4 of 8 in the eval runs made while finishing this version). Haiku alone failed one case in each of its recent runs, in three different ways: on T-1008 it found the overcharge but proposed no actions at all; on T-1006 it once never produced a valid proposal and, in the run above, answered a question about an order that doesn't exist with a 60 € credit on another order, at high confidence. The first two now hand the ticket to Opus in `auto`. The third shows no sign code can check; the reviewer's approval, the policy check and the eval are what stop it. Eight cases can't show how much escalation buys overall; measuring cost, latency and accuracy per model on more cases is the next step. A local Qwen3 8B through Ollama scored 4/8 on an earlier, looser version of the suite (2026-11-24): it missed an action and picked wrong categories, and the policy check blocked its one out-of-policy action (reshipping goods that were out of stock).
 
 ### What failed, and what changed
 
