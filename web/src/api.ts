@@ -22,6 +22,8 @@ export type TriageResult = {
   proposal_id: string;
   applied: number[];
   provider: string;
+  escalation: { from: string; to: string; reasons: string[] } | null;
+  recorded: boolean;
   proposal: Proposal | null;
   policy_violations: string[];
   trace: TraceStep[];
@@ -29,15 +31,20 @@ export type TriageResult = {
   error: string | null;
 };
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...init });
+export type Config = { providers: string[]; access_code_required: boolean; recorded: string[] };
+
+async function call<T>(path: string, init?: RequestInit, headers: Record<string, string> = {}): Promise<T> {
+  const r = await fetch(path, { ...init, headers: { "Content-Type": "application/json", ...headers } });
   if (!r.ok) throw new Error((await r.json().catch(() => null))?.detail ?? r.statusText);
   return r.json();
 }
 
 export const listTickets = () => call<Ticket[]>("/api/tickets");
-export const triage = (id: string, provider: string) =>
-  call<TriageResult>(`/api/tickets/${id}/triage?provider=${provider}`, { method: "POST" });
+export const getConfig = () => call<Config>("/api/config");
+export const triage = (id: string, provider: string, accessCode: string) =>
+  call<TriageResult>(`/api/tickets/${id}/triage?provider=${encodeURIComponent(provider)}`, { method: "POST" },
+    accessCode ? { "X-Access-Code": accessCode } : {});
+export const recorded = (id: string) => call<TriageResult>(`/api/tickets/${id}/recorded`);
 export const approve = (id: string, proposal_id: string, action_indexes: number[]) =>
   call<{ applied: unknown[] }>(`/api/tickets/${id}/approve`, {
     method: "POST",

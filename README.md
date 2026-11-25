@@ -8,6 +8,8 @@ This project is an AI assistant that does that legwork. It reads the email, chec
 
 It is built with safeguards. It can only look up the records of the customer who wrote. Email addresses, phone numbers, bank account numbers and personal identity codes are hidden from the AI. Fixed rules in the code block actions outside policy, such as a large credit or a change to another customer's order, even if an email tries to talk the AI into them. A set of sample emails checks how often it gets the answer right.
 
+To keep costs down, a small, fast AI model handles each email first. When its answer looks unsure or messy, a stronger model redoes the work, and the reviewer sees why.
+
 It is a demo: the company and all data are made up, and it has no login or database. The rest of this page is the technical detail.
 
 ## How it works
@@ -35,7 +37,9 @@ ticket ──► redact ──► agent loop ──► submit_proposal ──►
 | Prompt injection in customer text | The system prompt treats tickets as data, and `check_policy` in `support_agent/proposal.py` blocks: credits above 25 % of the invoice in total per order, counting credits already approved on other tickets, credits that aren't a positive amount, address changes after pickup, reships of out-of-stock goods, and actions on another customer's or a missing order. An amount or address on an action it doesn't belong to is dropped before the checks and noted in the trace. The UI disables approval when a check fails, and so does the API. Ticket T-1007 tries an injection. |
 | Personal data | `support_agent/redact.py` replaces email addresses, phone numbers (with spaces, dashes or brackets), IBANs and Finnish personal identity codes with placeholders such as `[EMAIL_1]`, in the ticket **and** in ERP results. Names and street addresses are not masked. The mapping stays server-side; the reviewer sees contact details restored in the draft reply, but bank accounts and identity codes are never put back. Tests check that none of the personal values in the sample data reach the model. |
 | Answers grounded in data | A proposal is accepted only after at least one ERP lookup returned data (an error or an empty result doesn't count), and it must list evidence that isn't blank. With Claude the schema is enforced by strict tool use; with Ollama it is validated in code. An invalid proposal goes back to the model to fix. |
+| Cost per ticket | By default (`auto`) Claude Haiku 5.5 triages first. `support_agent/escalation.py` hands the ticket to Claude Opus 5.5, which starts again from scratch, when the first run shows a sign of trouble that code can check: no proposal, a policy violation, confidence below high, category `other`, `no_action` mixed with real actions, or a proposal the model had to be corrected on. The reviewer sees which model answered, why it was escalated, and the first attempt in the trace. |
 | Not tied to one vendor | `support_agent/providers.py` hides Claude (Messages API) and Ollama (native `/api/chat`) behind one small interface. |
+| A public demo link | Each visitor gets their own session, with their own copy of the sample ERP and audit log, so visitors never see each other's approvals. Recorded runs replay instantly at no cost. Live runs can require an access code (`DEMO_ACCESS_CODE`) and are capped per visitor per hour and for everyone per day. |
 | Knowing whether it works | Offline tests run the whole loop with a scripted model, including one test per safeguard (`tests/test_safeguards.py`, `tests/test_api.py`). `evals/` scores live runs on deterministic checks: category, lookups that returned data (of the right order where it matters), required actions on the right order, forbidden and not-allowed actions, policy, credit amounts to the cent, and that none of the personal values in the sample data reach the model. A failed case fails the run. |
 
 Retrieval is BM25 over six short runbooks. That is a strong, explainable baseline at this size; embeddings would replace only `support_agent/retrieval.py`.
@@ -53,7 +57,9 @@ pytest -q                                          # offline, no API key needed
 Choose a model:
 
 ```bash
-export ANTHROPIC_API_KEY=...                       # Claude (default: claude-opus-5-5; set CLAUDE_MODEL to change)
+export ANTHROPIC_API_KEY=...       # default provider "auto": Haiku 5.5, escalating to Opus 5.5
+                                   #   (CLAUDE_FAST_MODEL and CLAUDE_STRONG_MODEL change them)
+export AGENT_PROVIDER=claude       # or one Claude model only (CLAUDE_MODEL, default claude-opus-5-5)
 # or
 ollama pull qwen3:8b && export AGENT_PROVIDER=ollama   # local; set OLLAMA_MODEL to change
 ```
@@ -76,9 +82,20 @@ uvicorn support_agent.api:app
 Evals:
 
 ```bash
-python evals/run_evals.py --provider claude        # 8 tickets, a few cents
+python evals/run_evals.py                          # auto: Haiku, escalating to Opus; 8 tickets, a few cents
+python evals/run_evals.py --provider claude        # Opus only
 python evals/run_evals.py --provider ollama
+python evals/record_runs.py                        # save the runs the web page replays
 ```
+
+Public demo in a container (any host that runs containers):
+
+```bash
+docker build -t support-triage-agent .
+docker run -p 8000:8000 -e ANTHROPIC_API_KEY -e DEMO_ACCESS_CODE=choose-one support-triage-agent
+```
+
+The container offers only Claude. `DEMO_RUNS_PER_HOUR` (default 10 per visitor) and `DEMO_RUNS_PER_DAY` (default 200 in total) cap live runs; set a spending limit on the API key as well.
 
 ## Results
 
@@ -87,6 +104,10 @@ python evals/run_evals.py --provider ollama
 | 2026-11-23 | Claude Opus 5.5 (`claude-opus-5-5`, effort medium), before the fixed date and the stricter T-1001 | 8/8 | [evals/results/2026-11-23-1358-claude_claude-opus-5-5.json](evals/results/2026-11-23-1358-claude_claude-opus-5-5.json) |
 | 2026-11-24 | Claude Opus 5.5 (`claude-opus-5-5`, effort medium) | 8/8 | [evals/results/2026-11-24-1236-claude_claude-opus-5-5.json](evals/results/2026-11-24-1236-claude_claude-opus-5-5.json) |
 | 2026-11-24 | Qwen3 8B (`qwen3:8b`) through Ollama 0.40.18, local on an RTX 4090 | 4/8 | [evals/results/2026-11-24-1239-ollama_qwen3_8b.json](evals/results/2026-11-24-1239-ollama_qwen3_8b.json) |
+| 2026-11-25 | `auto`: Claude Haiku 5.5, escalating to Opus 5.5 (1 of 8 escalated) | 8/8 | [evals/results/2026-11-25-1100-auto_claude-haiku-5-5_to_claude-opus-5-5.json](evals/results/2026-11-25-1100-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
+| 2026-11-25 | `auto`, second run (1 of 8 escalated) | 8/8 | [evals/results/2026-11-25-1102-auto_claude-haiku-5-5_to_claude-opus-5-5.json](evals/results/2026-11-25-1102-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
+
+Haiku 5.5 alone also scored 8/8 in two runs ([1](evals/results/2026-11-25-claude_claude-haiku-5-5-run1.json), [2](evals/results/2026-11-25-claude_claude-haiku-5-5-run2.json)). In an earlier escalating run, before the `no_action` signal existed, Haiku put a `no_action` on an unrelated order of the same customer next to a correct credit on T-1008, rated itself highly confident, and failed the case (7/8); that is why mixing `no_action` with real actions now escalates. With escalation, both runs above handed T-1006 (an order reference that doesn't exist) to Opus, because Haiku was unsure and mixed `no_action` with a real action; Opus took no action, as the case requires.
 
 Every case checks the category, the lookups that returned data, the required actions on the right order, the forbidden actions, the policy check, and that none of the personal values in the sample data reached the model. The pricing cases also check that the only action is a credit of exactly 60.00 EUR on the right order, and T-1006 that the agent takes no action on a guessed order. The checks look at action types and targets, not at the reasons given, so T-1004's carrier contact counts whether it files a claim or asks for an ETA. That includes the prompt-injection ticket (T-1007) and the ticket with an IBAN and a personal identity code (T-1008). Eight cases is a smoke test, not a benchmark.
 
@@ -107,21 +128,23 @@ Two GitHub Actions workflows:
 support_agent/
   agent.py        agent loop, system prompt, trace
   providers.py    Claude and Ollama behind one interface
+  escalation.py   Haiku first, Opus when the run looks unclear
   erp_server.py   MCP server with read-only tools
   erp.py          in-memory mock ERP (reads, approved writes, audit log)
   proposal.py     proposal schema and policy checks
   redact.py       pseudonymisation of personal data
   retrieval.py    BM25 over runbooks
   api.py, cli.py  FastAPI app and command line
-  data/           synthetic orders, tickets and runbooks
+  data/           synthetic orders, tickets and runbooks; recorded/ holds the runs the page replays
 web/              React + TypeScript review UI
-evals/            cases and live eval runner
+evals/            cases, live eval runner and the script that records runs
+Dockerfile        the public demo in one container
 tests/            offline tests with a scripted model
 ```
 
 ## Limits
 
-- One ticket at a time, in memory; no database or authentication. The approver's name is whatever the caller sends, so run it locally only.
+- In memory, no database or user accounts. Each visitor's session lives only in the server's memory and is lost on restart. The approver's name is whatever the caller sends. The access code and caps limit cost, not who can look.
 - Names and street addresses are not masked; only the formats listed above are. The eval's privacy check looks for the personal values in the sample data, not for personal data in general.
 - The mock ERP simulates writes: only address changes update an order; other approved actions are written to the audit log.
 - The policy rules and runbooks are examples, not a real company's.

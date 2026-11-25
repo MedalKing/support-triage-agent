@@ -1,6 +1,7 @@
 """Run the agent on every sample ticket and score it against evals/cases.yaml.
 
-    python evals/run_evals.py --provider claude      # needs ANTHROPIC_API_KEY; costs a few cents
+    python evals/run_evals.py                        # auto: Haiku, escalating to Opus; needs ANTHROPIC_API_KEY
+    python evals/run_evals.py --provider claude      # one model (CLAUDE_MODEL, default Opus); a few cents
     python evals/run_evals.py --provider ollama      # needs a running Ollama
 
 Besides the per-case checks, every case also checks that no personal data from the ticket
@@ -20,7 +21,8 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from support_agent.agent import DEMO_TODAY, load_tickets, triage  # noqa: E402
+from support_agent.agent import DEMO_TODAY, load_tickets  # noqa: E402
+from support_agent.escalation import auto_label, run_triage  # noqa: E402
 from support_agent.erp import ERP  # noqa: E402
 from support_agent.providers import ProviderError, make_provider  # noqa: E402
 
@@ -68,13 +70,14 @@ def score(case: dict, result) -> dict[str, bool]:
 async def main(provider_name: str, out_path: str | None) -> int:
     cases = yaml.safe_load((HERE / "cases.yaml").read_text(encoding="utf-8"))
     tickets = {t["id"]: t for t in load_tickets()}
-    rows, provider_label = [], provider_name
+    rows = []
+    provider_label = auto_label() if provider_name == "auto" else make_provider(provider_name).name
     for case in cases:
-        provider = make_provider(provider_name)
-        provider_label = provider.name
+        escalation = None
         try:
             # Pinned to the demo date: the expected answers depend on it, so AGENT_TODAY must not move it.
-            result = await triage(tickets[case["ticket"]], provider, ERP(), as_of=DEMO_TODAY)
+            result = await run_triage(tickets[case["ticket"]], ERP(), provider_name, as_of=DEMO_TODAY)
+            escalation = result.escalation
             checks, error = score(case, result), result.error
             proposed = result.proposal and {
                 "category": result.proposal.category,
@@ -85,15 +88,18 @@ async def main(provider_name: str, out_path: str | None) -> int:
             checks, error, proposed = {"proposal": False}, str(e), None
         passed = all(checks.values())
         rows.append({"ticket": case["ticket"], "passed": passed, "checks": checks, "proposed": proposed,
-                     "error": error})
+                     "escalation": escalation, "error": error})
         failed = [k for k, v in checks.items() if not v]
-        print(f"{case['ticket']}  {'PASS' if passed else 'FAIL ' + ', '.join(failed)}")
+        note = f"  (escalated: {'; '.join(escalation['reasons'])})" if escalation else ""
+        print(f"{case['ticket']}  {'PASS' if passed else 'FAIL ' + ', '.join(failed)}{note}")
 
     n_pass = sum(r["passed"] for r in rows)
-    print(f"\n{n_pass}/{len(rows)} cases passed ({provider_label})")
-    out = Path(out_path) if out_path else         HERE / "results" / f"{datetime.now():%Y-%m-%d-%H%M}-{provider_label.replace(':', '_')}.json"
+    n_esc = sum(bool(r["escalation"]) for r in rows)
+    print(f"\n{n_pass}/{len(rows)} cases passed ({provider_label}), {n_esc} escalated")
+    out = Path(out_path) if out_path else HERE / "results" / f"{datetime.now():%Y-%m-%d-%H%M}-{provider_label.replace(':', '_').replace('->', '_to_')}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"provider": provider_label, "as_of": DEMO_TODAY.isoformat(), "passed": n_pass,
+                               "escalated": n_esc,
                                "total": len(rows), "cases": rows}, indent=2), encoding="utf-8")
     print(f"wrote {out}")
     return 0 if n_pass == len(rows) else 1  # a failed case fails the run, also in CI
@@ -101,7 +107,7 @@ async def main(provider_name: str, out_path: str | None) -> int:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--provider", default="claude")
+    parser.add_argument("--provider", default="auto", help="auto (default), claude or ollama")
     parser.add_argument("--out", help="write the report here instead of evals/results/")
     args = parser.parse_args()
     sys.exit(anyio.run(main, args.provider, args.out))
