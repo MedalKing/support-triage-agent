@@ -60,15 +60,17 @@ class ERP:
         return None if pl is None else {"price_list_id": price_list_id, **pl}
 
     def approved_credits(self, order_id: str, except_proposal: str | None = None) -> list[dict[str, Any]]:
-        """Credits already approved on an order (audit log entries), except one proposal's own."""
+        """Credits already approved on an order (audit log entries), except one proposal's own.
+        A declined credit was never given, so it doesn't count."""
         return [e for e in self.audit_log if e["type"] == "issue_credit" and e["order_id"] == order_id
-                and e.get("proposal_id") != except_proposal]
+                and e["decision"] == "approved" and e.get("proposal_id") != except_proposal]
 
     # --- write side (only after human approval) ---
 
     def apply_action(self, action: dict[str, Any], approved_by: str) -> dict[str, Any]:
         entry = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "decision": "approved",
             "approved_by": approved_by,
             **action,
         }
@@ -77,4 +79,16 @@ class ERP:
         # are recorded in the audit log, which is where a real ERP integration would take over.
         if action["type"] == "update_delivery_address" and action.get("new_address"):
             self._data["orders"][action["order_id"]]["delivery_address"] = action["new_address"]
+        return entry
+
+    def record_decline(self, action: dict[str, Any], declined_by: str, reason: str) -> dict[str, Any]:
+        """A person said no to a proposed action. Nothing changes; the decision and why are logged."""
+        entry = {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            **action,  # its "reason" is the agent's; the reviewer's goes in decline_reason
+            "decision": "declined",
+            "declined_by": declined_by,
+            "decline_reason": reason,
+        }
+        self.audit_log.append(entry)
         return entry

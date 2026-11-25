@@ -106,6 +106,7 @@ class TriageResult:
     # The approval API binds to this id, so a reviewer can only approve the proposal they saw.
     proposal_id: str = field(default_factory=lambda: uuid4().hex)
     applied: set[int] = field(default_factory=set)
+    declined: dict[int, str] = field(default_factory=dict)  # action index -> the reviewer's reason
     # Set when a fast model's run was redone by a stronger one: {"from", "to", "reasons"}.
     escalation: dict[str, Any] | None = None
     recorded: bool = False  # replayed from a saved run, not run live
@@ -125,6 +126,7 @@ class TriageResult:
             "ticket_id": self.ticket_id,
             "proposal_id": self.proposal_id,
             "applied": sorted(self.applied),
+            "declined": {str(i): reason for i, reason in sorted(self.declined.items())},
             "provider": self.provider,
             "escalation": self.escalation,
             "recorded": self.recorded,

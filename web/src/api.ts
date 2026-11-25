@@ -21,6 +21,7 @@ export type TriageResult = {
   ticket_id: string;
   proposal_id: string;
   applied: number[];
+  declined: Record<string, string>; // action index -> the reviewer's reason
   provider: string;
   escalation: { from: string; to: string; reasons: string[] } | null;
   recorded: boolean;
@@ -32,7 +33,10 @@ export type TriageResult = {
 };
 export type AuditEntry = {
   ts: string;
-  approved_by: string;
+  decision: "approved" | "declined";
+  approved_by?: string;
+  declined_by?: string;
+  decline_reason?: string;
   ticket_id: string;
   type: string;
   order_id: string;
@@ -64,6 +68,11 @@ export const approve = (id: string, proposal_id: string, action_indexes: number[
   call<{ applied: AuditEntry[] }>(`/api/tickets/${id}/approve`, {
     method: "POST",
     body: JSON.stringify({ proposal_id, action_indexes, approved_by: "demo reviewer" }),
+  });
+export const decline = (id: string, proposal_id: string, action_indexes: number[], reason: string) =>
+  call<{ declined: AuditEntry[] }>(`/api/tickets/${id}/decline`, {
+    method: "POST",
+    body: JSON.stringify({ proposal_id, action_indexes, declined_by: "demo reviewer", reason }),
   });
 export const auditLog = () => call<AuditEntry[]>("/api/audit");
 export const reset = () => call<{ status: string }>("/api/reset", { method: "POST" });

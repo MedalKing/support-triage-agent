@@ -8,7 +8,7 @@ POST /api/tickets/{id}/approve   applies the actions a person approved.
 
 Actions that break policy are refused here as well as in the UI. An approval names the
 proposal it was given for, so a newer triage can't swap the actions underneath the
-reviewer, and each action can be applied only once.
+reviewer, and each action can be decided only once: applied, or declined with a reason.
 
 Each visitor gets their own session (a cookie): their own copy of the sample ERP, their
 own proposals and their own audit log, so visitors never see or undo each other's approvals.
@@ -220,51 +220,79 @@ def load_recorded(ticket: dict[str, Any], saved: dict[str, Any], erp: ERP) -> Tr
     return result
 
 
+def _not_blank(value: str) -> str:
+    if not value.strip():
+        raise ValueError("must not be blank")
+    return value.strip()
+
+
 class Approval(BaseModel):
     proposal_id: str
     action_indexes: list[StrictInt] = Field(min_length=1)
     approved_by: str = Field(min_length=1, max_length=100)
-
-    @field_validator("approved_by")
-    @classmethod
-    def _not_blank(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("approved_by must not be blank")
-        return value.strip()
+    _check = field_validator("approved_by")(_not_blank)
 
 
-# `async def` with no await inside: the check and the write run in one step on the event loop,
-# so two approvals of the same action can't both pass the check.
-@app.post("/api/tickets/{ticket_id}/approve")
-async def approve(ticket_id: str, approval: Approval, s: Session = Depends(session)) -> dict[str, Any]:
+class Decline(BaseModel):
+    proposal_id: str
+    action_indexes: list[StrictInt] = Field(min_length=1)
+    declined_by: str = Field(min_length=1, max_length=100)
+    reason: str = Field(min_length=1, max_length=500)  # required: a "no" without a reason teaches nobody anything
+    _check = field_validator("declined_by", "reason")(_not_blank)
+
+
+def selected_actions(ticket_id: str, proposal_id: str, indexes: list[int], s: Session) -> TriageResult:
+    """Check a reviewer's selection before anything is written; return the result it belongs to."""
     if ticket_id not in tickets:
         raise HTTPException(404, "ticket not found")
     result = s.results.get(ticket_id)
     if result is None or result.proposal is None:
         raise HTTPException(409, "triage the ticket first")
-    if approval.proposal_id != result.proposal_id:
+    if proposal_id != result.proposal_id:
         raise HTTPException(409, "the proposal has changed since you loaded it; review it again")
-    if check_policy(result.proposal, tickets[ticket_id]["customer_id"], s.erp, result.proposal_id):
-        raise HTTPException(422, "proposal violates policy; fix it by hand instead")
-    # Validate the whole selection before writing anything.
     actions = result.proposal.actions
-    indexes = approval.action_indexes
     if len(set(indexes)) != len(indexes):
         raise HTTPException(422, "an action is selected twice")
     for i in indexes:
         if not 0 <= i < len(actions):
             raise HTTPException(422, f"no action {i} in this proposal")
         if actions[i].type == "no_action":
-            raise HTTPException(422, f"action {i} is no_action; there is nothing to apply")
+            raise HTTPException(422, f"action {i} is no_action; there is nothing to decide")
         if i in result.applied:
             raise HTTPException(409, f"action {i} was already applied")
+        if i in result.declined:
+            raise HTTPException(409, f"action {i} was already declined")
+    return result
+
+
+# `async def` with no await inside: the check and the write run in one step on the event loop,
+# so two approvals of the same action can't both pass the check.
+@app.post("/api/tickets/{ticket_id}/approve")
+async def approve(ticket_id: str, approval: Approval, s: Session = Depends(session)) -> dict[str, Any]:
+    result = selected_actions(ticket_id, approval.proposal_id, approval.action_indexes, s)
+    if check_policy(result.proposal, tickets[ticket_id]["customer_id"], s.erp, result.proposal_id):
+        raise HTTPException(422, "proposal violates policy; fix it by hand instead")
+    actions = result.proposal.actions
     applied = []
-    for i in indexes:
+    for i in approval.action_indexes:
         action = actions[i].model_dump()
         applied.append(s.erp.apply_action({"ticket_id": ticket_id, "proposal_id": result.proposal_id, **action},
                                           approval.approved_by))
         result.applied.add(i)
     return {"applied": applied}
+
+
+# Declining works on blocked proposals too: saying no to an out-of-policy action is a decision.
+@app.post("/api/tickets/{ticket_id}/decline")
+async def decline(ticket_id: str, choice: Decline, s: Session = Depends(session)) -> dict[str, Any]:
+    result = selected_actions(ticket_id, choice.proposal_id, choice.action_indexes, s)
+    declined = []
+    for i in choice.action_indexes:
+        action = result.proposal.actions[i].model_dump()
+        declined.append(s.erp.record_decline({"ticket_id": ticket_id, "proposal_id": result.proposal_id, **action},
+                                             choice.declined_by, choice.reason))
+        result.declined[i] = choice.reason
+    return {"declined": declined}
 
 
 @app.get("/api/audit")

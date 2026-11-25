@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  approve, AuditEntry, auditLog, Config, getConfig, listTickets, recorded, reset, triage, Ticket, TraceStep, TriageResult,
+  approve, AuditEntry, auditLog, Config, decline, getConfig, listTickets, recorded, reset, triage, Ticket, TraceStep, TriageResult,
 } from "./api";
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -32,7 +32,7 @@ const TOUR: TourStep[] = [
   {
     ticket: "T-1003",
     title: "Policy runs in code, not in the prompt",
-    text: "Approve the 60 € credit on T-1003, then open T-1008, a second email about the same invoice. Code blocks the second credit and asks for a manager, whatever the model says.",
+    text: "Tick the 60 € credit and press Approve (nothing real happens; the order system is simulated). Then open T-1008, a second email about the same invoice: code blocks the second credit and asks for a manager, whatever the model says.",
   },
 ];
 const TOUR_TICKETS = new Set(["T-1003", "T-1007", "T-1008"]);
@@ -85,6 +85,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const [declining, setDeclining] = useState(false);
+  const [reason, setReason] = useState("");
   // The ticket on screen. A triage answer for a ticket the reviewer has left is dropped.
   const current = useRef<string | null>(null);
 
@@ -116,6 +118,8 @@ export default function App() {
     setResult(null);
     setChecked([]);
     setMessage(null);
+    setDeclining(false);
+    setReason("");
     window.scrollTo(0, 0);
     if (config?.recorded.includes(t.id)) run(false, t);
   }
@@ -129,10 +133,10 @@ export default function App() {
       const r = live ? await triage(ticketId, provider, accessCode) : await recorded(ticketId);
       if (current.current !== ticketId) return;
       setResult(r);
-      // Pre-tick only actions that change nothing for the customer and aren't applied yet.
+      // Pre-tick only actions that change nothing for the customer and aren't decided yet.
       setChecked(
         r.proposal?.actions.flatMap((a, i) =>
-          a.needs_approval || a.type === "no_action" || r.applied.includes(i) ? [] : [i],
+          a.needs_approval || a.type === "no_action" || r.applied.includes(i) || String(i) in r.declined ? [] : [i],
         ) ?? [],
       );
     } catch (e) {
@@ -153,6 +157,28 @@ export default function App() {
       setResult({ ...result, applied: [...result.applied, ...checked] });
       setChecked([]);
       setMessage(`Approved ${r.applied.length} action(s); see the audit log.`);
+    } catch (e) {
+      if (current.current === ticketId) setMessage(String(e));
+    } finally {
+      if (current.current === ticketId) setBusy(false);
+    }
+  }
+
+  async function submitDecline() {
+    if (!selected || !result || !reason.trim()) return;
+    const ticketId = selected.id;
+    setBusy(true);
+    try {
+      const r = await decline(ticketId, result.proposal_id, checked, reason.trim());
+      setAudit(await auditLog());
+      if (current.current !== ticketId) return;
+      const declined = { ...result.declined };
+      for (const i of checked) declined[String(i)] = reason.trim();
+      setResult({ ...result, declined });
+      setChecked([]);
+      setDeclining(false);
+      setReason("");
+      setMessage(`Declined ${r.declined.length} action(s); the reason is in the audit log.`);
     } catch (e) {
       if (current.current === ticketId) setMessage(String(e));
     } finally {
@@ -188,8 +214,10 @@ export default function App() {
   const next =
     selected?.id === "T-1007" && result?.proposal
       ? { id: "T-1003", label: "Next: step 2, a credit and then a second one →" }
-      : selected?.id === "T-1003" && creditApproved
-      ? { id: "T-1008", label: "Next: open T-1008, the same refund asked for again →" }
+      : selected?.id === "T-1003" && result?.proposal
+        ? creditApproved
+          ? { id: "T-1008", label: "Next: open T-1008, the same refund asked for again →" }
+          : { id: "", label: "Approve the credit above to continue the tour" }
       : selected?.id === "T-1008" && blocked && escalation
         ? { id: escalation.ticket, label: `Next: a run Claude Opus redid (${escalation.ticket}) →` }
         : null;
@@ -250,8 +278,10 @@ export default function App() {
             <h2>Audit log</h2>
             {audit.map((e, i) => (
               <div key={i} className="small entry">
+                {e.decision === "declined" ? "Declined " : "Approved "}
                 <strong>{e.type}</strong> on {e.order_id}
                 {e.amount_eur != null && <> · {e.amount_eur.toFixed(2)} €</>} <span className="muted">({e.ticket_id})</span>
+                {e.decline_reason && <div className="muted">“{e.decline_reason}”</div>}
               </div>
             ))}
             <p className="muted small">The order system is simulated: actions are logged, only address changes edit the order.</p>
@@ -369,7 +399,7 @@ export default function App() {
                     {a.type !== "no_action" && (
                       <input
                         type="checkbox"
-                        disabled={blocked || busy || result.applied.includes(i)}
+                        disabled={busy || result.applied.includes(i) || String(i) in result.declined}
                         checked={checked.includes(i) || result.applied.includes(i)}
                         onChange={(e) => setChecked(e.target.checked ? [...checked, i] : checked.filter((x) => x !== i))}
                       />
@@ -377,22 +407,59 @@ export default function App() {
                     <strong>{a.type}</strong> on {a.order_id}
                     {a.amount_eur != null && <> · {a.amount_eur.toFixed(2)} €</>}
                     {a.new_address && <> · to {a.new_address}</>}
-                    {a.needs_approval && !blocked && !result.applied.includes(i) && (
+                    {a.needs_approval && !blocked && !result.applied.includes(i) && !(String(i) in result.declined) && (
                       <span className="tag warn">tick to approve</span>
                     )}
                     {result.applied.includes(i) && <span className="tag">applied</span>}
+                    {String(i) in result.declined && (
+                      <>
+                        <span className="tag declined">declined</span>
+                        <div className="muted">Your reason: {result.declined[String(i)]}</div>
+                      </>
+                    )}
                     <div className="muted">Agent's reason: {a.reason}</div>
                     {a.approval_reason && <div className="why">What to check: {a.approval_reason}</div>}
                   </label>
                 ))}
-                {actionable && (
-                  <button onClick={submit} disabled={blocked || busy || checked.length === 0}>
-                    Approve selected
-                  </button>
+                {actionable && !declining && (
+                  <div className="row">
+                    <button onClick={submit} disabled={blocked || busy || checked.length === 0}>
+                      Approve selected
+                    </button>
+                    <button className="secondary" onClick={() => setDeclining(true)} disabled={busy || checked.length === 0}>
+                      Decline selected…
+                    </button>
+                  </div>
+                )}
+                {declining && (
+                  <div className="decline">
+                    <p className="small">
+                      Declining:{" "}
+                      {checked.map((i) => `${result.proposal!.actions[i].type} on ${result.proposal!.actions[i].order_id}`).join(", ")}.
+                      Untick anything you don't mean to decline.
+                    </p>
+                    <label htmlFor="decline-reason">Why? This goes into the audit log.</label>
+                    <textarea
+                      id="decline-reason"
+                      value={reason}
+                      maxLength={500}
+                      rows={2}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="For example: the quote was for a different box"
+                    />
+                    <div className="row">
+                      <button onClick={submitDecline} disabled={busy || !reason.trim() || checked.length === 0}>
+                        Confirm decline
+                      </button>
+                      <button className="secondary" onClick={() => setDeclining(false)}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 )}
                 {message && <p className="notice">{message}</p>}
                 {next && (
-                  <button className="next" onClick={() => open(next.id)}>
+                  <button className="next" onClick={() => next.id && open(next.id)} disabled={!next.id}>
                     {next.label}
                   </button>
                 )}
