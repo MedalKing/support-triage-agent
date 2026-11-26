@@ -37,3 +37,16 @@ Earlier result files are in [`evals/results/archive/`](../evals/results/archive/
 
 - **CI** (every push and pull request): runs the offline test suite (including checking that every recorded run passes its eval case) and the web build. No model calls.
 - **Live evals** (manual `workflow_dispatch`): runs the eleven cases against Claude without storing an API key in GitHub. The job requests a short-lived GitHub OIDC token, which the Anthropic SDK exchanges for a 10-minute access token via workload identity federation. The federation rule accepts only `workflow_dispatch` runs on `main` of this repository (pinned to numeric owner and repository IDs) and maps to a service account scoped to one workspace. Actions are pinned to commit SHAs, CI has read-only repository permissions, and the identity token file is deleted after the run.
+
+## From demo to production
+
+**What carries over as-is:** the trust boundary (read-only MCP tools scoped to the sender, deterministic policy checks at both proposal and approval, proposal-bound approvals), the audit log of approvals and declines with reasons, escalation on checkable signals, per-run cost/latency tracking, and deterministic evals gating changes.
+
+**What would change:**
+
+1. **Real systems behind the same tools:** MCP tools call real ERP read APIs with the customer derived from the authenticated ticket, never from model input. Approved actions call write APIs with the `proposal_id` as the idempotency key.
+2. **People and roles:** Reviewers sign in with SSO (recorded in the audit log). Blocked credits route to a manager queue rather than stopping at "needs a manager", and the Evals view sits behind an admin role.
+3. **State and intake:** Tickets arrive from the helpdesk via webhook; proposals, decisions, and an append-only audit log live in a database. Approved draft replies push back to the helpdesk as drafts for a human to send.
+4. **Privacy:** Mask names and street addresses in addition to structured identifiers, enforce trace retention periods, and review data-processing terms with the model provider.
+5. **Quality over time:** Grow the eval set from sampled real tickets and reviewer declines; track pass rate, escalation rate, and cost per ticket per release; gate model upgrades on passing evals.
+6. **Operations:** Alert on error and escalation spikes, enforce workspace spend limits, and pin model versions so behavior doesn't drift underneath.
