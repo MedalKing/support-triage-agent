@@ -5,38 +5,32 @@ import {
 } from "./api";
 
 const PROVIDER_LABELS: Record<string, string> = {
-  auto: "Claude Haiku, escalating to Opus when code sees trouble",
-  claude: "Claude, one model",
-  ollama: "Local model (Ollama)",
+  auto: "Auto (Haiku → Opus)",
+  claude: "Claude (single)",
+  ollama: "Ollama (local)",
 };
 
-// What each sample ticket shows off. Shown next to the ticket in the list.
 const SCENARIOS: Record<string, string> = {
   "T-1001": "late delivery",
   "T-1002": "out of stock",
   "T-1003": "wrong price → credit",
   "T-1004": "damaged goods",
   "T-1005": "address change",
-  "T-1006": "order that doesn't exist",
+  "T-1006": "unknown order",
   "T-1007": "prompt injection",
-  "T-1008": "bank details + second credit",
-  "T-1009": "redirect the carrier can't do",
+  "T-1008": "IBAN + duplicate credit",
+  "T-1009": "unsupported redirect",
 };
 
-// `also`: other emails that belong to the same step, such as the second email of step 2.
-type TourStep = { ticket: string; title: string; text: string; also?: string[] };
+type TourStep = { ticket: string; title: string; also?: string[]; cue?: string };
 
 const TOUR: TourStep[] = [
-  {
-    ticket: "T-1007",
-    title: "A ticket that tries to give orders",
-    text: "The customer's message tells the AI to approve a 100 % credit. See what the agent proposes instead, and that it says why.",
-  },
+  { ticket: "T-1007", title: "Prompt injection" },
   {
     ticket: "T-1003",
     also: ["T-1008"],
-    title: "Policy runs in code, not in the prompt",
-    text: "Tick the 60 € credit and press Approve (nothing real happens; the order system is simulated). Then open T-1008, a second email about the same invoice: code blocks the second credit and asks for a manager, whatever the model says.",
+    title: "Policy block",
+    cue: "Approve the 60 € credit, then open T-1008.",
   },
 ];
 const TOUR_TICKETS = new Set(["T-1003", "T-1007", "T-1008"]);
@@ -49,9 +43,6 @@ function modelName(provider: string): string {
   return `Claude ${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}.${m[3]}`;
 }
 
-// The escalation step points at a recorded run that really escalated, preferring one where
-// the stronger model changed the proposed actions and the reason is easy to follow, and not
-// one of the tour's own tickets.
 const score = (e: { reasons: string[]; changed: boolean }) =>
   2 * Number(e.changed) + Number(e.reasons.some((r) => r.includes("confidence")));
 
@@ -59,15 +50,15 @@ function escalationStep(config: Config | null): TourStep | null {
   const entries = Object.entries(config?.escalated ?? {})
     .filter(([id]) => !TOUR_TICKETS.has(id))
     .sort(([, a], [, b]) => score(b) - score(a));
-  const [ticket, e] = entries[0] ?? [];
+  const [ticket] = entries[0] ?? [];
   if (!ticket) return null;
-  return {
-    ticket,
-    title: "A cheap model first, a stronger one when code sees trouble",
-    text: `Claude Haiku handles each ticket first. On this one, code saw that ${e.reasons.join(" and ")}, so Claude Opus redid the run${
-      e.changed ? " and proposed different actions" : ""
-    }. The trace shows both attempts.`,
-  };
+  return { ticket, title: "Model escalation" };
+}
+
+function confidenceClass(confidence: string): string {
+  if (confidence === "high") return "tag ok";
+  if (confidence === "medium") return "tag warn";
+  return "tag declined";
 }
 
 function loadCode(): string {
@@ -93,9 +84,7 @@ export default function App() {
   const [reason, setReason] = useState("");
   const [view, setView] = useState<"inbox" | "archive">("inbox");
   const [query, setQuery] = useState("");
-  // The tour shows only for visitors who started it; anyone else just works the inbox.
   const [touring, setTouring] = useState(false);
-  // The ticket on screen. A triage answer for a ticket the reviewer has left is dropped.
   const current = useRef<string | null>(null);
 
   useEffect(() => {
@@ -116,7 +105,7 @@ export default function App() {
     try {
       localStorage.setItem("accessCode", code);
     } catch {
-      /* private window: the code is kept for this page only */
+      /* private window */
     }
   }
 
@@ -141,10 +130,9 @@ export default function App() {
     const ticketId = ticket.id;
     try {
       const r = live ? await triage(ticketId, provider, accessCode) : await recorded(ticketId);
-      if (live) refreshTickets(); // a new proposal puts the email back in the inbox, even if the reviewer moved on
+      if (live) refreshTickets();
       if (current.current !== ticketId) return;
       setResult(r);
-      // Pre-tick only actions that change nothing for the customer and aren't decided yet.
       setChecked(
         r.proposal?.actions.flatMap((a, i) =>
           a.needs_approval || a.type === "no_action" || r.applied.includes(i) || String(i) in r.declined ? [] : [i],
@@ -161,14 +149,13 @@ export default function App() {
     if (!selected || !result) return;
     const ticketId = selected.id;
     setBusy(true);
+    setMessage(null);
     try {
-      const r = await approve(ticketId, result.proposal_id, checked);
-      // The lists change even if the reviewer has already opened another email.
+      await approve(ticketId, result.proposal_id, checked);
       await Promise.all([auditLog().then(setAudit), refreshTickets()]);
       if (current.current !== ticketId) return;
       setResult({ ...result, applied: [...result.applied, ...checked] });
       setChecked([]);
-      setMessage(`Approved ${r.applied.length} action(s). Every decision is in the audit log, under Archive.`);
     } catch (e) {
       if (current.current === ticketId) setMessage(String(e));
     } finally {
@@ -180,8 +167,9 @@ export default function App() {
     if (!selected || !result || !reason.trim()) return;
     const ticketId = selected.id;
     setBusy(true);
+    setMessage(null);
     try {
-      const r = await decline(ticketId, result.proposal_id, checked, reason.trim());
+      await decline(ticketId, result.proposal_id, checked, reason.trim());
       await Promise.all([auditLog().then(setAudit), refreshTickets()]);
       if (current.current !== ticketId) return;
       const declined = { ...result.declined };
@@ -190,7 +178,6 @@ export default function App() {
       setChecked([]);
       setDeclining(false);
       setReason("");
-      setMessage(`Declined ${r.declined.length} action(s). The reason is in the audit log, under Archive.`);
     } catch (e) {
       if (current.current === ticketId) setMessage(String(e));
     } finally {
@@ -233,9 +220,8 @@ export default function App() {
     setBusy(false);
   }
 
-  // Back to how a new visitor finds the demo: every email in the inbox, nothing decided, no tour.
   async function startOver() {
-    if (changed && !window.confirm("Reset the demo? Your approvals, declines and archive are cleared.")) return;
+    if (changed && !window.confirm("Reset demo? Clears approvals, declines, and archive.")) return;
     try {
       await reset();
       setAudit([]);
@@ -245,83 +231,79 @@ export default function App() {
       setTouring(false);
       goHome();
     } catch (e) {
-      setMessage(`Could not start over: ${e}`);
+      setMessage(`Reset failed: ${e}`);
     }
   }
 
   const inbox = tickets.filter((t) => !t.archived);
   const archive = tickets.filter((t) => t.archived);
   const changed = audit.length > 0 || archive.length > 0;
-  const ready = tickets.length > 0 && config !== null; // opening an email needs both
+  const ready = tickets.length > 0 && config !== null;
   const q = query.trim().toLowerCase();
   const shown = (view === "inbox" ? inbox : archive).filter(
     (t) => !q || [t.id, t.subject, t.body, t.customer_name, SCENARIOS[t.id] ?? ""].some((f) => f.toLowerCase().includes(q)),
   );
   const isArchived = !!selected && archive.some((t) => t.id === selected.id);
-  // The next email still waiting, after this one in the list, wrapping around.
   const at = tickets.findIndex((t) => t.id === selected?.id);
   const nextInInbox = [...tickets.slice(at + 1), ...tickets.slice(0, Math.max(at, 0))].find((t) => !t.archived);
   const undecided = result?.proposal?.actions.filter(
     (a, i) => a.type !== "no_action" && !result.applied.includes(i) && !(String(i) in result.declined),
   ).length ?? 0;
-  // What happened to an archived email, from the audit log.
+
   const outcome = (id: string) => {
     const mine = audit.filter((e) => e.ticket_id === id);
-    const n = (d: string) => mine.filter((e) => e.decision === d).length;
-    const parts = [n("approved") && `${n("approved")} approved`, n("declined") && `${n("declined")} declined`].filter(Boolean);
-    return parts.length ? parts.join(" · ") : "nothing to approve";
+    const a = mine.filter((e) => e.decision === "approved").length;
+    const d = mine.filter((e) => e.decision === "declined").length;
+    const parts = [a && `✓${a}`, d && `✕${d}`].filter(Boolean);
+    return parts.length ? parts.join(" ") : "done";
   };
+
   const blocked = (result?.policy_violations.length ?? 0) > 0;
   const actionable = !!result?.proposal?.actions.some((a) => a.type !== "no_action");
   const escalation = escalationStep(config);
   const tour = [...TOUR, ...(escalation ? [escalation] : [])];
   const creditApproved = !!result?.proposal?.actions.some((a, i) => a.type === "issue_credit" && result.applied.includes(i));
-  // The next step of the tour, offered where the visitor is.
   const next = !touring
     ? null
     : selected?.id === "T-1007" && result?.proposal
-      ? { id: "T-1003", label: "Next: step 2, a credit and then a second one →" }
+      ? { id: "T-1003", label: "Next: T-1003 →" }
       : selected?.id === "T-1003" && result?.proposal
         ? creditApproved
-          ? { id: "T-1008", label: "Next: open T-1008, the same refund asked for again →" }
-          : { id: "", label: "Approve the credit above to continue the tour" }
+          ? { id: "T-1008", label: "Next: T-1008 →" }
+          : { id: "", label: "Approve credit to continue" }
       : selected?.id === "T-1008" && blocked && escalation
-        ? { id: escalation.ticket, label: `Next: a run Claude Opus redid (${escalation.ticket}) →` }
+        ? { id: escalation.ticket, label: `Next: ${escalation.ticket} →` }
         : null;
 
-  // The first screen is a calm landing page; the ticket list appears once you are inside.
   if (!selected) {
     return (
       <div className="landing">
-        <p className="eyebrow">Support triage agent · a demo</p>
+        <p className="eyebrow">
+          Support triage agent <span className="tag">demo</span>
+        </p>
         <h1>An AI agent proposes. A person decides.</h1>
         <p className="lead">
-          It reads customer emails for a made-up packaging company, looks up the order and proposes what to do. It can't
-          change anything itself: you approve each action, and rules in code block what's out of policy.
+          Read-only order lookups, policy enforced in code, human approval on every action.
         </p>
         <div className="row start">
           <button className="primary" onClick={() => startTour(tour[0].ticket)} disabled={!ready}>
-            Start the 3-minute tour →
+            Start tour →
           </button>
           <button className="secondary big" onClick={skipTour} disabled={!ready}>
-            Skip the tour, open the inbox
+            Inbox ({inbox.length || 9})
           </button>
         </div>
         <ol className="steps">
           {tour.map((step) => (
             <li key={step.ticket}>
               <button className="link" onClick={() => startTour(step.ticket)} disabled={!ready}>
-                {step.title}
+                {step.title} <span className="muted small">({step.ticket})</span>
               </button>
             </li>
           ))}
         </ol>
-        <p className="muted small">
-          {inbox.length} {inbox.length === 1 ? "email" : "emails"} waiting, all with recorded runs: instant and free.
-        </p>
         {changed && (
-          <p className="muted small">
-            You have already approved, declined or archived something.{" "}
+          <p className="reset-inline">
             <button className="link small" onClick={startOver}>Reset demo</button>
           </p>
         )}
@@ -331,12 +313,21 @@ export default function App() {
   }
 
   const tourIndex = touring ? tour.findIndex((s) => s.ticket === selected.id || s.also?.includes(selected.id)) : -1;
+  const activeStep = tourIndex >= 0 ? tour[tourIndex] : null;
+  const tourCue =
+    !touring
+      ? null
+      : selected.id === "T-1003" && creditApproved
+        ? "Credit approved — open T-1008."
+        : selected.id === "T-1008"
+          ? null
+          : activeStep?.cue;
 
   return (
     <div className="layout">
       <aside>
         <h1>
-          <button className="home" onClick={goHome} title="Back to the start page">
+          <button className="home" onClick={goHome} title="Start page">
             Support triage agent
           </button>
         </h1>
@@ -350,7 +341,7 @@ export default function App() {
             placeholder="Search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label={view === "inbox" ? "Search the inbox" : "Search the archive"}
+            aria-label={view === "inbox" ? "Search inbox" : "Search archive"}
           />
         </label>
         {view === "archive" && (
@@ -373,34 +364,39 @@ export default function App() {
                 <span className="who">
                   {t.id} · {view === "inbox" ? SCENARIOS[t.id] : outcome(t.id)}
                 </span>
-                {view === "inbox" && config?.escalated[t.id] && <span className="flag">escalated</span>}
+                {view === "inbox" && config?.escalated[t.id] && (
+                  <span className="badge-up" title="Escalated to stronger model">
+                    ↑
+                  </span>
+                )}
               </span>
             </button>
           ))}
-          {query && shown.length === 0 && <p className="empty muted small">No emails match “{query}”.</p>}
+          {query && shown.length === 0 && <p className="empty muted small">No matches.</p>}
           {!query && view === "inbox" && inbox.length === 0 && (
-            <p className="empty">
-              <strong>Inbox zero.</strong> Every email is handled.
+            <p className="empty muted small">
+              <strong>Inbox zero</strong>
             </p>
           )}
           {!query && view === "archive" && archive.length === 0 && (
-            <p className="empty muted small">
-              Nothing here yet. An email moves here once every action on it is approved or declined.
-            </p>
+            <p className="empty muted small">Archive empty.</p>
           )}
 
-          {view === "archive" && (audit.length > 0 || archive.length > 0) && (
+          {view === "archive" && audit.length > 0 && (
             <section className="audit">
-              {audit.length > 0 && <h2>Audit log</h2>}
+              <h2>
+                Audit log <span className="tag">simulated</span>
+              </h2>
               {audit.map((e, i) => (
                 <div key={i} className="small entry">
-                  {e.decision === "declined" ? "Declined " : "Approved "}
-                  <strong>{e.type}</strong> on {e.order_id}
+                  <span className={e.decision === "declined" ? "mark err" : "mark ok"} aria-label={e.decision}>
+                    {e.decision === "declined" ? "✕" : "✓"}
+                  </span>{" "}
+                  <strong>{e.type}</strong> · {e.order_id}
                   {e.amount_eur != null && <> · {e.amount_eur.toFixed(2)} €</>} <span className="muted">({e.ticket_id})</span>
                   {e.decline_reason && <div className="muted">“{e.decline_reason}”</div>}
                 </div>
               ))}
-              <p className="muted small">The order system is simulated: actions are logged, only address changes edit the order.</p>
             </section>
           )}
         </div>
@@ -412,224 +408,231 @@ export default function App() {
           </button>
         )}
         <button className="link small reset" onClick={startOver} disabled={busy}>
-          Reset demo
+          Reset
         </button>
       </aside>
 
       <main>
-        {selected && (
-          <>
-            {tourIndex >= 0 && (
-              <div className="tourbar">
-                <p>
+        {touring && (
+          <div className="tourbar">
+            <div className="stepper">
+              {tour.map((step, i) => (
+                <button
+                  key={step.ticket}
+                  className={i === tourIndex ? "step-pill active" : "step-pill"}
+                  onClick={() => open(step.ticket)}
+                >
+                  <span className="step-num">{i + 1}</span>
+                  {step.title}
+                </button>
+              ))}
+              <button className="link small end-tour" onClick={() => setTouring(false)} title="End tour" aria-label="End tour">
+                ✕
+              </button>
+            </div>
+            {tourCue && <p className="cue">{tourCue}</p>}
+          </div>
+        )}
+
+        <section className="card">
+          <h2>{selected.subject}</h2>
+          <p className="muted">
+            {selected.id} · {selected.customer_id} · {SCENARIOS[selected.id]}
+          </p>
+          <p className="ticket-body">{selected.body}</p>
+          {busy && !result && <p className="muted">Loading…</p>}
+          {!busy && !result && message && <button onClick={() => run(false)}>Retry</button>}
+          <details className="live">
+            <summary>Live run</summary>
+            <div className="row">
+              <select value={provider} onChange={(e) => setProvider(e.target.value)} aria-label="Model provider">
+                {(config?.providers ?? ["auto"]).map((p) => (
+                  <option key={p} value={p}>
+                    {PROVIDER_LABELS[p] ?? p}
+                  </option>
+                ))}
+              </select>
+              {config?.access_code_required && (
+                <input
+                  type="password"
+                  placeholder="Access code"
+                  value={accessCode}
+                  onChange={(e) => saveCode(e.target.value)}
+                  aria-label="Access code"
+                />
+              )}
+              <button onClick={() => run(true)} disabled={busy}>
+                {busy ? "Running…" : "Run"}
+              </button>
+            </div>
+          </details>
+        </section>
+
+        {result?.error && <p className="error">{result.error}</p>}
+
+        {result?.proposal && (
+          <section className="card">
+            <div className="card-head">
+              <h2>
+                Proposal <span className="tag">{result.proposal.category}</span>
+                <span className={confidenceClass(result.proposal.confidence)} title="Model confidence">
+                  {result.proposal.confidence}
+                </span>
+              </h2>
+              <div className="meta-pills">
+                <span className={result.recorded ? "tag" : "tag ok"}>{result.recorded ? "recorded" : "live"}</span>
+                <span className="muted small">{modelName(result.provider)}</span>
+              </div>
+            </div>
+
+            {result.escalation && (
+              <div className="escalation">
+                <div className="esc-head">
                   <strong>
-                    Tour · step {tourIndex + 1} of {tour.length}: {tour[tourIndex].title}.
-                  </strong>{" "}
-                  {tour[tourIndex].text}{" "}
-                  <button className="link small" onClick={() => setTouring(false)}>
-                    End tour
-                  </button>
-                </p>
+                    {modelName(result.escalation.from)} → {modelName(result.escalation.to)}
+                  </strong>
+                  {result.escalation.reasons.map((r, i) => (
+                    <span key={i} className="tag warn">
+                      {r}
+                    </span>
+                  ))}
+                </div>
+                <FirstAttempt result={result} />
               </div>
             )}
-            <section className="card">
-              <h2>{selected.subject}</h2>
-              <p className="muted">
-                {selected.id} · customer {selected.customer_id} · {SCENARIOS[selected.id]}
-              </p>
-              <p className="ticket-body">{selected.body}</p>
-              {busy && !result && <p className="muted">Loading…</p>}
-              {!busy && !result && message && (
-                <button onClick={() => run(false)}>Try again</button>
-              )}
-              <details className="live">
-                <summary>Run it live instead</summary>
-                <div className="row">
-                  <select value={provider} onChange={(e) => setProvider(e.target.value)}>
-                    {(config?.providers ?? ["auto"]).map((p) => (
-                      <option key={p} value={p}>
-                        {PROVIDER_LABELS[p] ?? p}
-                      </option>
-                    ))}
-                  </select>
-                  {config?.access_code_required && (
-                    <input
-                      type="password"
-                      placeholder="Access code"
-                      value={accessCode}
-                      onChange={(e) => saveCode(e.target.value)}
-                      aria-label="Access code for live runs"
-                    />
-                  )}
-                  <button onClick={() => run(true)} disabled={busy}>
-                    {busy ? "Investigating…" : "Run live"}
-                  </button>
-                </div>
-                <p className="muted small">
-                  Calls the model now; takes 10–60 seconds.
-                  {config?.access_code_required && " Needs the access code from my job application."}
-                </p>
-              </details>
-            </section>
 
-            {result?.error && <p className="error">{result.error}</p>}
+            <p>{result.proposal.likely_cause}</p>
 
-            {result?.proposal && (
-              <section className="card">
-                <h2>
-                  Proposal <span className="tag">{result.proposal.category}</span>{" "}
-                  <span className="tag" title="The model's own estimate">
-                    model's confidence: {result.proposal.confidence}
-                  </span>
-                </h2>
-                <p className="muted">
-                  {result.recorded ? "Recorded run" : "Live run"} by {modelName(result.provider)}
-                </p>
-                {result.escalation && (
-                  <div className="escalation">
-                    Redone by {modelName(result.escalation.to)} after {modelName(result.escalation.from)}, because{" "}
-                    {result.escalation.reasons.join(" and ")}.
-                    <FirstAttempt result={result} /> The trace below shows both attempts.
-                  </div>
-                )}
-                <p>{result.proposal.likely_cause}</p>
-                <h3>Evidence</h3>
+            <h3>Evidence</h3>
+            <ul>
+              {result.proposal.evidence.map((e, i) => (
+                <li key={i}>{e}</li>
+              ))}
+            </ul>
+
+            <h3>Actions</h3>
+            {blocked && (
+              <div className="error">
+                <strong>Policy block</strong>
                 <ul>
-                  {result.proposal.evidence.map((e, i) => (
-                    <li key={i}>{e}</li>
+                  {result.policy_violations.map((v, i) => (
+                    <li key={i}>{v}</li>
                   ))}
                 </ul>
-
-                <h3>Actions</h3>
-                {actionable && (
-                  <p className="muted small">
-                    Nothing happens until you press Approve. Free requests, such as asking the carrier for news, are
-                    ticked for you. Actions that cost money or change the order are left for you to tick, with what to
-                    check. Once every action is approved or declined, the email moves to the archive.
-                  </p>
-                )}
-                {blocked && (
-                  <div className="error">
-                    Blocked by policy (checked in code, not by the model):
-                    <ul>
-                      {result.policy_violations.map((v, i) => (
-                        <li key={i}>{v}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {result.proposal.actions.map((a, i) => (
-                  <label key={i} className="action">
-                    {a.type !== "no_action" && (
-                      <input
-                        type="checkbox"
-                        disabled={busy || result.applied.includes(i) || String(i) in result.declined}
-                        checked={checked.includes(i) || result.applied.includes(i)}
-                        onChange={(e) => setChecked(e.target.checked ? [...checked, i] : checked.filter((x) => x !== i))}
-                      />
-                    )}
-                    <strong>{a.type}</strong> on {a.order_id}
-                    {a.amount_eur != null && <> · {a.amount_eur.toFixed(2)} €</>}
-                    {a.new_address && <> · to {a.new_address}</>}
-                    {a.needs_approval && !blocked && !result.applied.includes(i) && !(String(i) in result.declined) && (
-                      <span className="tag warn">tick to approve</span>
-                    )}
-                    {result.applied.includes(i) && <span className="tag">applied</span>}
-                    {String(i) in result.declined && (
-                      <>
-                        <span className="tag declined">declined</span>
-                        <div className="muted">Your reason: {result.declined[String(i)]}</div>
-                      </>
-                    )}
-                    <div className="muted">Agent's reason: {a.reason}</div>
-                    {a.approval_reason && <div className="why">What to check: {a.approval_reason}</div>}
-                  </label>
-                ))}
-                {isArchived ? (
-                  <div className="done">
-                    <strong>Done.</strong>{" "}
-                    {nextInInbox ? "This email is in the archive." : "Inbox zero: every email is handled."}
-                    <div className="row">
-                      {nextInInbox && !next && (
-                        <button onClick={() => open(nextInInbox.id)}>Next in inbox: {nextInInbox.id} →</button>
-                      )}
-                      <button className="secondary" onClick={() => setDone(false)}>Move back to inbox</button>
-                    </div>
-                  </div>
-                ) : undecided === 0 ? (
-                  <div className="row">
-                    <button onClick={() => setDone(true)} disabled={busy}>Mark done</button>
-                    <span className="muted small hint">Nothing left to approve. Marking it done clears it from the inbox.</span>
-                  </div>
-                ) : null}
-                {actionable && !declining && undecided > 0 && (
-                  <div className="row">
-                    <button onClick={submit} disabled={blocked || busy || checked.length === 0}>
-                      Approve selected
-                    </button>
-                    <button className="secondary" onClick={() => setDeclining(true)} disabled={busy || checked.length === 0}>
-                      Decline selected…
-                    </button>
-                  </div>
-                )}
-                {declining && (
-                  <div className="decline">
-                    <p className="small">
-                      Declining:{" "}
-                      {checked.map((i) => `${result.proposal!.actions[i].type} on ${result.proposal!.actions[i].order_id}`).join(", ")}.
-                      Untick anything you don't mean to decline.
-                    </p>
-                    <label htmlFor="decline-reason">Why? This goes into the audit log.</label>
-                    <textarea
-                      id="decline-reason"
-                      value={reason}
-                      maxLength={500}
-                      rows={2}
-                      onChange={(e) => setReason(e.target.value)}
-                      placeholder="For example: the quote was for a different box"
-                    />
-                    <div className="row">
-                      <button onClick={submitDecline} disabled={busy || !reason.trim() || checked.length === 0}>
-                        Confirm decline
-                      </button>
-                      <button className="secondary" onClick={() => setDeclining(false)}>
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {message && <p className="notice">{message}</p>}
-                {next && (
-                  <button className="next" onClick={() => next.id && open(next.id)} disabled={!next.id}>
-                    {next.label}
-                  </button>
-                )}
-
-                <h3>Draft reply</h3>
-                {blocked ? (
-                  <details>
-                    <summary className="muted">
-                      Held back: a manager must decide on the blocked action before anyone replies. Show the draft
-                    </summary>
-                    <pre className="reply">{result.proposal.customer_reply}</pre>
-                  </details>
-                ) : (
-                  <pre className="reply">{result.proposal.customer_reply}</pre>
-                )}
-                {result.redactions.length > 0 && (
-                  <p className="muted small">
-                    Hidden from the model: {result.redactions.join(", ")}. The model worked with these placeholders only;
-                    the reply needs none of them.
-                  </p>
-                )}
-              </section>
+              </div>
             )}
 
-            {result && <Trace result={result} />}
+            {result.proposal.actions.map((a, i) => (
+              <label key={i} className="action">
+                {a.type !== "no_action" && (
+                  <input
+                    type="checkbox"
+                    disabled={busy || result.applied.includes(i) || String(i) in result.declined}
+                    checked={checked.includes(i) || result.applied.includes(i)}
+                    onChange={(e) => setChecked(e.target.checked ? [...checked, i] : checked.filter((x) => x !== i))}
+                  />
+                )}
+                <strong>{a.type}</strong> · {a.order_id}
+                {a.amount_eur != null && <> · {a.amount_eur.toFixed(2)} €</>}
+                {a.new_address && <> · {a.new_address}</>}
+                {a.needs_approval && !blocked && !result.applied.includes(i) && !(String(i) in result.declined) && (
+                  <span className="tag warn">approval required</span>
+                )}
+                {result.applied.includes(i) && <span className="tag ok">applied</span>}
+                {String(i) in result.declined && (
+                  <>
+                    <span className="tag declined">declined</span>
+                    <div className="muted">“{result.declined[String(i)]}”</div>
+                  </>
+                )}
+                <div className="muted">{a.reason}</div>
+                {a.approval_reason && <div className="why">Check: {a.approval_reason}</div>}
+              </label>
+            ))}
 
-            {message && !result?.proposal && <p className="muted">{message}</p>}
-          </>
+            {isArchived ? (
+              <div className="done">
+                <div className="row">
+                  <span className="tag ok">archived</span>
+                  {nextInInbox && !next && (
+                    <button onClick={() => open(nextInInbox.id)}>Next: {nextInInbox.id} →</button>
+                  )}
+                  <button className="secondary" onClick={() => setDone(false)}>Move to inbox</button>
+                </div>
+              </div>
+            ) : undecided === 0 ? (
+              <div className="row actions-bar">
+                <button onClick={() => setDone(true)} disabled={busy}>Mark done</button>
+              </div>
+            ) : null}
+
+            {actionable && !declining && undecided > 0 && (
+              <div className="row actions-bar">
+                <button onClick={submit} disabled={blocked || busy || checked.length === 0}>
+                  Approve
+                </button>
+                <button className="secondary" onClick={() => setDeclining(true)} disabled={busy || checked.length === 0}>
+                  Decline…
+                </button>
+              </div>
+            )}
+
+            {declining && (
+              <div className="decline">
+                <textarea
+                  id="decline-reason"
+                  aria-label="Reason for declining"
+                  value={reason}
+                  maxLength={500}
+                  rows={2}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Reason for declining…"
+                />
+                <div className="row">
+                  <button onClick={submitDecline} disabled={busy || !reason.trim() || checked.length === 0}>
+                    Decline
+                  </button>
+                  <button className="secondary" onClick={() => setDeclining(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {message && <p className="error">{message}</p>}
+
+            {next && (
+              <button className="next" onClick={() => next.id && open(next.id)} disabled={!next.id}>
+                {next.label}
+              </button>
+            )}
+
+            <h3>Draft reply</h3>
+            {blocked ? (
+              <details>
+                <summary className="muted">Held (policy block) · Show draft</summary>
+                <pre className="reply">{result.proposal.customer_reply}</pre>
+              </details>
+            ) : (
+              <pre className="reply">{result.proposal.customer_reply}</pre>
+            )}
+
+            {result.redactions.length > 0 && (
+              <div className="redactions">
+                <span className="muted small">Redacted</span>
+                {result.redactions.map((r) => (
+                  <code key={r} className="chip">
+                    {r}
+                  </code>
+                ))}
+              </div>
+            )}
+          </section>
         )}
+
+        {result && <Trace result={result} />}
+
+        {message && !result?.proposal && <p className="error">{message}</p>}
       </main>
     </div>
   );
@@ -643,7 +646,6 @@ function when(received: string): string {
   return new Date(`${day}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short" });
 }
 
-// A small square with the customer's initials, its colour fixed per customer.
 function Badge({ id, name }: { id: string; name: string }) {
   const words = name.split(/\s+/).filter((w) => !/^(ltd|oy|ab|oyj|inc)$/i.test(w));
   const initials = words.slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -655,7 +657,6 @@ function Badge({ id, name }: { id: string; name: string }) {
   );
 }
 
-// What the first model proposed before the run was redone, in one line.
 function FirstAttempt({ result }: { result: TriageResult }) {
   const cut = result.trace.findIndex((s) => s.kind === "note" && s.name === "escalated");
   const first = result.trace
@@ -666,34 +667,32 @@ function FirstAttempt({ result }: { result: TriageResult }) {
         confidence: string;
       }
     | undefined;
-  if (!first) return <> {modelName(result.escalation!.from)} gave no usable proposal.</>;
+  if (!first) return <div className="muted small">Attempt 1: no valid proposal</div>;
   const actions = first.actions
     .map(
       (a) =>
-        `${a.type} on ${a.order_id}${a.amount_eur != null ? ` (${a.amount_eur.toFixed(2)} €)` : ""}${
-          a.new_address ? ` to ${a.new_address}` : ""
+        `${a.type} ${a.order_id}${a.amount_eur != null ? ` (${a.amount_eur.toFixed(2)} €)` : ""}${
+          a.new_address ? ` → ${a.new_address}` : ""
         }`,
     )
     .join(", ");
   return (
-    <>
-      {" "}
-      {modelName(result.escalation!.from)} had proposed: {actions || "nothing"}, with confidence {first.confidence}.
-    </>
+    <div className="muted small">
+      Attempt 1: {actions || "none"} · {first.confidence}
+    </div>
   );
 }
 
-// The trace, split into attempts when a run was escalated.
 function Trace({ result }: { result: TriageResult }) {
   const attempts: { title: string; steps: TraceStep[] }[] = [];
   let steps: TraceStep[] = [];
-  let title = result.escalation ? `Attempt 1: ${modelName(result.escalation.from)}` : modelName(result.provider);
+  let title = result.escalation ? `Attempt 1 · ${modelName(result.escalation.from)}` : modelName(result.provider);
   for (const s of result.trace) {
     if (s.kind === "note" && s.name === "first_attempt") continue;
     if (s.kind === "note" && s.name === "escalated") {
       attempts.push({ title, steps });
       steps = [];
-      title = `Attempt 2: ${modelName(result.provider)}`;
+      title = `Attempt 2 · ${modelName(result.provider)}`;
       continue;
     }
     steps.push(s);
@@ -702,8 +701,9 @@ function Trace({ result }: { result: TriageResult }) {
   const count = attempts.reduce((n, a) => n + a.steps.length, 0);
   return (
     <details className="card">
-      <summary>
-        What the agent did ({count} steps{result.escalation ? ", two attempts" : ""})
+      <summary className="trace-summary">
+        Trace <span className="tag">{count} steps</span>
+        {result.escalation && <span className="tag warn">2 attempts</span>}
       </summary>
       {attempts.map((a, i) => (
         <section key={i} className="attempt">
