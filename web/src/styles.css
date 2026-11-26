@@ -61,7 +61,7 @@ button.primary { font-size: 17px; padding: 12px 20px; border-radius: 8px; }
 .steps button.link { margin: 0; font-size: 15px; }
 button.link.small { font-size: 13px; margin: 0; }
 .tourbar { margin-bottom: 16px; }
-.tourbar p { margin: 6px 0 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--panel); font-size: 14px; line-height: 1.5; }
+.tourbar p { margin: 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--panel); font-size: 14px; line-height: 1.5; }
 .row button.secondary { margin-top: 0; }
 .tag.declined { color: var(--error); border-color: var(--error); }
 .decline { margin-top: 8px; display: grid; gap: 6px; font-size: 14px; }

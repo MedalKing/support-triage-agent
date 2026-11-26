@@ -301,7 +301,7 @@ export default function App() {
     <div className="layout">
       <aside>
         <h1>
-          <button className="home" onClick={goHome}>
+          <button className="home" onClick={goHome} title="Back to the start page">
             Support triage agent
           </button>
         </h1>
@@ -384,19 +384,16 @@ export default function App() {
       <main>
         {selected && (
           <>
-            <div className="tourbar">
-              <button className="link" onClick={goHome}>
-                ← Start
-              </button>
-              {tourIndex >= 0 && (
+            {tourIndex >= 0 && (
+              <div className="tourbar">
                 <p>
                   <strong>
                     Tour · step {tourIndex + 1} of {tour.length}: {tour[tourIndex].title}.
                   </strong>{" "}
                   {tour[tourIndex].text}
                 </p>
-              )}
-            </div>
+              </div>
+            )}
             <section className="card">
               <h2>{selected.subject}</h2>
               <p className="muted">
