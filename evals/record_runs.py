@@ -2,7 +2,8 @@
 
     python evals/record_runs.py                 # auto: Haiku, escalating to Opus; needs ANTHROPIC_API_KEY
 
-The runs are saved with placeholders, not personal data, in support_agent/data/recorded/.
+The runs are saved in support_agent/data/recorded/. They hold no personal data: the model only
+ever saw placeholders, and the reply must not contain any.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ async def main(provider: str, only: list[str]) -> None:
         if only and ticket["id"] not in only:
             continue
         result = await run_triage(ticket, ERP(), provider, as_of=DEMO_TODAY)
-        saved = result.to_dict(restore_pii=False)
+        saved = result.to_dict()
         for key in ("proposal_id", "applied", "recorded"):  # set fresh when a visitor loads it
             saved.pop(key)
         saved["as_of"] = DEMO_TODAY.isoformat()

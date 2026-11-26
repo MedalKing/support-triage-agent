@@ -1,13 +1,13 @@
 from support_agent.redact import Redactor
 
 
-def test_redacts_and_restores_contact_details():
+def test_redacts_contact_details_with_stable_placeholders():
     r = Redactor()
     text = "Call +358 40 123 4567 or 044 222 3333, mail anna@x.example. Again: anna@x.example"
     out = r.redact(text)
     assert "anna@x.example" not in out and "123 4567" not in out and "222 3333" not in out
     assert out.count("[EMAIL_1]") == 2  # same value, same placeholder
-    assert r.restore(out) == text
+    assert set(r.forward) == {"+358 40 123 4567", "044 222 3333", "anna@x.example"}  # kept on our side
 
 
 def test_redacts_iban_and_identity_code_without_eating_them_as_phones():

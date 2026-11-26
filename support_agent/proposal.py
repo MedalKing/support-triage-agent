@@ -7,6 +7,7 @@ Policy lives here, not only in the prompt, so a prompt injection can't talk its 
 from __future__ import annotations
 
 import math
+import re
 from collections import defaultdict
 from typing import Any, Literal
 
@@ -29,6 +30,7 @@ APPROVAL_REASONS = {
     "update_delivery_address": "Changes where the order goes. Check the new address with the customer's message.",
 }
 NEEDS_APPROVAL = set(APPROVAL_REASONS)
+REDIRECT_REASON = "Sends the goods somewhere else. Check the new address with the customer's message."
 MAX_AGENT_CREDIT_SHARE = 0.25  # larger credits are out of scope for the agent
 
 
@@ -77,7 +79,7 @@ SUBMIT_PROPOSAL_TOOL = {
             "category": {"type": "string", "enum": list(Category.__args__)},
             "likely_cause": {"type": "string", "description": "One or two sentences."},
             "evidence": {"type": "array", "items": {"type": "string"},
-                         "description": "Facts from tool results that support the cause, with ids."},
+                         "description": "At least one fact from tool results that supports the cause, with ids."},
             "actions": {
                 "type": "array",
                 "items": {
@@ -94,11 +96,35 @@ SUBMIT_PROPOSAL_TOOL = {
                 },
             },
             "customer_reply": {"type": "string",
-                               "description": "Draft reply to the customer. Keep placeholders like [EMAIL_1] as they are."},
+                               "description": "Draft reply to the customer, plain text ready to send, without placeholders."},
             "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
         },
     },
 }
+
+
+PLACEHOLDER = re.compile(r"\[[A-Z][A-Z0-9_ ]*\]")
+QUOTES = '"\u201c\u201d'
+
+
+def reply_problems(reply: str) -> list[str]:
+    """Problems that would make the draft reply wrong to send as it is.
+
+    A placeholder in the reply is either the customer's own contact detail (they don't need it,
+    and offering it as ours is wrong) or one the model made up. A stray quotation mark is an
+    artefact of the model wrapping its answer in quotes. Both rules are deliberately blunt: an
+    inch mark (12" boxes) or a bracketed word would also be sent back once, which is cheap.
+    """
+    problems = []
+    tags = sorted(set(PLACEHOLDER.findall(reply)))
+    if tags:
+        problems.append(f"remove the placeholders {', '.join(tags)}; the reply must be ready to send")
+    text = reply.strip()
+    if not text:
+        problems.append("the reply is empty")
+    elif text[0] in QUOTES or text[-1] in QUOTES or sum(text.count(q) for q in QUOTES) % 2:
+        problems.append("remove the stray quotation marks around or in the reply")
+    return problems
 
 
 # Which action types an amount or an address belongs to. A carrier redirect carries the new address.
@@ -123,8 +149,9 @@ def drop_stray_fields(proposal: Proposal) -> list[str]:
 def check_policy(proposal: Proposal, ticket_customer_id: str, erp: Any, proposal_id: str | None = None) -> list[str]:
     """Return policy violations. Violating actions are blocked in the UI and at the approval API.
 
-    The credit cap counts credits already approved on the order by other proposals, so two
-    tickets about the same invoice can't add up past it.
+    Credits: an order that already has an approved credit from another proposal (another
+    ticket, or an earlier run of this one) needs a manager for the next one, whatever the
+    amounts. A first credit must stay within the cap, counting all its actions together.
     """
     problems = []
     credits: dict[str, float] = defaultdict(float)
@@ -157,15 +184,19 @@ def check_policy(proposal: Proposal, ticket_customer_id: str, erp: Any, proposal
                 stock = erp.get_stock(line["sku"])
                 if not stock or stock["on_hand"] <= 0:
                     problems.append(f"reship_order: {line['sku']} is out of stock; the remainder is a backorder")
-    # The cap is per order, so splitting a credit into several actions doesn't get around it.
     for order_id, proposed in credits.items():
-        invoice = erp.get_order(order_id)["invoice_total_eur"]
-        earlier = erp.approved_credit_eur(order_id, except_proposal=proposal_id)
+        # A credit on an invoice that already got one from another ticket may be the same
+        # complaint twice. That is a manager's call, whatever the amounts.
+        earlier_entries = erp.approved_credits(order_id, except_proposal=proposal_id)
+        if earlier_entries:
+            done = ", ".join(f"{e['amount_eur']:.2f} EUR on {e['ticket_id']}" for e in earlier_entries)
+            problems.append(f"issue_credit: possible duplicate, {order_id} already has an approved credit "
+                            f"({done}); a second credit needs a manager")
+            continue
+        # The cap is per order, so splitting a credit into several actions doesn't get around it.
         # Compare in whole cents so float rounding can't nudge an amount past the cap.
-        if round((earlier + proposed) * 100) > round(MAX_AGENT_CREDIT_SHARE * invoice * 100):
-            already = f" ({earlier:.2f} EUR already approved)" if earlier else ""
-            problems.append(
-                f"issue_credit: {earlier + proposed:.2f} EUR on {order_id}{already} exceeds "
-                f"{MAX_AGENT_CREDIT_SHARE:.0%} of the invoice ({invoice:.2f} EUR); needs a manager"
-            )
+        invoice = erp.get_order(order_id)["invoice_total_eur"]
+        if round(proposed * 100) > round(MAX_AGENT_CREDIT_SHARE * invoice * 100):
+            problems.append(f"issue_credit: {proposed:.2f} EUR on {order_id} exceeds "
+                            f"{MAX_AGENT_CREDIT_SHARE:.0%} of the invoice ({invoice:.2f} EUR); needs a manager")
     return problems

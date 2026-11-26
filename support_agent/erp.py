@@ -29,7 +29,10 @@ class ERP:
         if order is None:
             return None
         customer = self._data["customers"][order["customer_id"]]
-        return {"order_id": order_id, **order, "customer": {"id": order["customer_id"], **customer}}
+        out = {"order_id": order_id, **order, "customer": {"id": order["customer_id"], **customer}}
+        # Credits a person already approved, so the agent can see them before proposing another.
+        credits = [{"ticket_id": e["ticket_id"], "amount_eur": e["amount_eur"]} for e in self.approved_credits(order_id)]
+        return {**out, "approved_credits": credits} if credits else out
 
     def list_customer_orders(self, customer_id: str) -> list[dict[str, Any]]:
         return [
@@ -56,17 +59,18 @@ class ERP:
         pl = self._data["price_lists"].get(price_list_id)
         return None if pl is None else {"price_list_id": price_list_id, **pl}
 
-    def approved_credit_eur(self, order_id: str, except_proposal: str | None = None) -> float:
-        """Credits already approved on an order, from the audit log."""
-        return sum(e["amount_eur"] for e in self.audit_log
-                   if e["type"] == "issue_credit" and e["order_id"] == order_id
-                   and e.get("proposal_id") != except_proposal)
+    def approved_credits(self, order_id: str, except_proposal: str | None = None) -> list[dict[str, Any]]:
+        """Credits already approved on an order (audit log entries), except one proposal's own.
+        A declined credit was never given, so it doesn't count."""
+        return [e for e in self.audit_log if e["type"] == "issue_credit" and e["order_id"] == order_id
+                and e["decision"] == "approved" and e.get("proposal_id") != except_proposal]
 
     # --- write side (only after human approval) ---
 
     def apply_action(self, action: dict[str, Any], approved_by: str) -> dict[str, Any]:
         entry = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "decision": "approved",
             "approved_by": approved_by,
             **action,
         }
@@ -75,4 +79,16 @@ class ERP:
         # are recorded in the audit log, which is where a real ERP integration would take over.
         if action["type"] == "update_delivery_address" and action.get("new_address"):
             self._data["orders"][action["order_id"]]["delivery_address"] = action["new_address"]
+        return entry
+
+    def record_decline(self, action: dict[str, Any], declined_by: str, reason: str) -> dict[str, Any]:
+        """A person said no to a proposed action. Nothing changes; the decision and why are logged."""
+        entry = {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            **action,  # its "reason" is the agent's; the reviewer's goes in decline_reason
+            "decision": "declined",
+            "declined_by": declined_by,
+            "decline_reason": reason,
+        }
+        self.audit_log.append(entry)
         return entry

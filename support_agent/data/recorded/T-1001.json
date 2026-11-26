@@ -1,21 +1,28 @@
 {
   "ticket_id": "T-1001",
-  "provider": "claude:claude-haiku-5-5",
-  "escalation": null,
+  "provider": "claude:claude-opus-5-5",
+  "escalation": {
+    "from": "claude:claude-haiku-5-5",
+    "to": "claude:claude-opus-5-5",
+    "reasons": [
+      "the model had to be corrected (a proposal that broke the schema)"
+    ]
+  },
   "proposal": {
     "category": "carrier_delay",
-    "likely_cause": "Order SO-5001 (500 x BOX-A4-200) is held at the NordFreight hub in Tampere due to a linehaul capacity shortage, a carrier-side delay. It has been past its promised date of 2026-11-10 for 9 working days with no movement since 2026-11-09.",
+    "likely_cause": "Shipment SH-9001 has been held at the NordFreight hub in Tampere since 2026-11-09 because the carrier is short of linehaul capacity. This is a delay on the carrier's side, and the order is now 9 working days past its promised date.",
     "evidence": [
-      "Order SO-5001: status shipped, promised_date 2026-11-10, carrier NordFreight, shipment SH-9001, customer C-201 (Pohjola Bakery Ltd, tier standard).",
-      "Shipment SH-9001 events: picked_up Espoo DC 2026-11-06 08:10; arrived_hub NordFreight hub Tampere 2026-11-07 19:40; exception at NordFreight hub Tampere 2026-11-09 06:00, note 'Held at hub: linehaul capacity shortage'. No later events.",
-      "Today is 2026-11-23. Working days past promised date (2026-11-10): 9, which is more than 5, so the late-delivery runbook allows expedite_shipment. It is under 10, so no credit applies.",
-      "Runbook 'late-delivery': carrier-side exception at hub -> contact_carrier for new ETA; expedite if delay > 5 working days; no credits below 10 working days."
+      "SO-5001: status shipped, promised_date 2026-11-10, working_days_late 9, carrier NordFreight, shipment SH-9001",
+      "SH-9001 2026-11-06T08:10 picked_up at Espoo DC",
+      "SH-9001 2026-11-07T19:40 arrived_hub at NordFreight hub Tampere",
+      "SH-9001 2026-11-09T06:00 exception at NordFreight hub Tampere: 'Held at hub: linehaul capacity shortage'. No later events.",
+      "Runbook late-delivery: an exception at a carrier hub means a carrier-side delay, so contact the carrier. A delay of more than 5 working days (here 9) means proposing expedite_shipment. No credit for carrier delays under 10 working days."
     ],
     "actions": [
       {
         "type": "contact_carrier",
         "order_id": "SO-5001",
-        "reason": "Shipment SH-9001 held at NordFreight hub Tampere since 2026-11-09 (linehaul capacity shortage). Request a confirmed new ETA and the current location of the shipment.",
+        "reason": "SH-9001 has been held at NordFreight hub Tampere since 2026-11-09 (linehaul capacity shortage). Ask NordFreight for a new ETA.",
         "amount_eur": null,
         "new_address": null,
         "needs_approval": false,
@@ -24,18 +31,25 @@
       {
         "type": "expedite_shipment",
         "order_id": "SO-5001",
-        "reason": "Promised date 2026-11-10 is 9 working days overdue, more than the 5-working-day threshold. Customer is running out of boxes. Needs approval.",
+        "reason": "Carrier delay of 9 working days is more than the runbook's 5-day threshold. The customer says they are running out of boxes.",
         "amount_eur": null,
         "new_address": null,
         "needs_approval": true,
         "approval_reason": "Faster freight costs us extra. Check that the delay is long enough to justify it."
       }
     ],
-    "customer_reply": "Dear Anna,\n\nThank you for contacting us about order SO-5001. We apologise that it has not reached you by the promised date of 10 November.\n\nWe have checked the shipment. It is being held at the NordFreight hub in Tampere because of a shortage of linehaul capacity at the carrier. We have contacted NordFreight to ask for a confirmed delivery date and we are asking for the shipment to be expedited because of how urgent your need is. We cannot give you a delivery date until the carrier confirms it, but we will send you an update as soon as we have it, and no later than [DATE_1].\n\nIf you need to talk to us directly, please call [PHONE_1] or reply to [EMAIL_1].\n\nKind regards,\nCustomer Support\"",
+    "customer_reply": "Hi Anna,\n\nThank you for contacting us, and I'm sorry your order SO-5001 is late. I know you are running low on boxes.\n\nI checked the shipment. Our carrier NordFreight collected your 500 BOX-A4-200 boxes on 6 November, and they reached the NordFreight hub in Tampere on 7 November. Since 9 November the shipment has been held at that hub because the carrier does not have enough truck capacity for the next part of the route. The delay is on the carrier's side, and your goods are at the hub waiting to move on.\n\nNext, we will ask NordFreight for a new delivery estimate. We are also reviewing whether we can speed up the shipment. As soon as the carrier confirms a delivery date, we will let you know. We won't give you a date until they have confirmed it.\n\nSorry again for the trouble this is causing.\n\nKind regards,\nCustomer Support",
     "confidence": "high"
   },
   "policy_violations": [],
   "trace": [
+    {
+      "kind": "note",
+      "name": "first_attempt",
+      "detail": {
+        "provider": "claude:claude-haiku-5-5"
+      }
+    },
     {
       "kind": "tool",
       "name": "get_order",
@@ -43,7 +57,7 @@
         "arguments": {
           "order_id": "SO-5001"
         },
-        "result": "{\"order_id\": \"SO-5001\", \"customer_id\": \"C-201\", \"status\": \"shipped\", \"lines\": [{\"sku\": \"BOX-A4-200\", \"qty\": 500, \"unit_price_eur\": 0.42}], \"promised_date\": \"2026-11-10\", \"carrier\": \"NordFreight\", \"shipment_id\": \"SH-9001\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Teollisuuskatu 5, Oulu\", \"customer\": {\"id\": \"C-201\", \"name\": \"Pohjola Bakery Ltd\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"standard\"}}",
+        "result": "{\"order_id\": \"SO-5001\", \"customer_id\": \"C-201\", \"order_date\": \"2026-10-27\", \"status\": \"shipped\", \"lines\": [{\"sku\": \"BOX-A4-200\", \"qty\": 500, \"unit_price_eur\": 0.42}], \"promised_date\": \"2026-11-10\", \"carrier\": \"NordFreight\", \"shipment_id\": \"SH-9001\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Teollisuuskatu 5, Oulu\", \"customer\": {\"id\": \"C-201\", \"name\": \"Pohjola Bakery Ltd\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"standard\"}, \"working_days_late\": 9}",
         "ok": true
       }
     },
@@ -52,9 +66,88 @@
       "name": "search_runbooks",
       "detail": {
         "arguments": {
-          "query": "late delivery carrier delay order not arrived"
+          "query": "order past promised date not arrived carrier delay"
         },
-        "result": "[{\"runbook\": \"late-delivery\", \"score\": 6.68, \"text\": \"# Late delivery\\n\\nApplies when the promised date has passed and the shipment is not delivered.\\n\\n1. Check shipment events. An `exception` event at a carrier hub means a carrier-side delay.\\n2. Carrier-side delay: contact the carrier (action `contact_carrier`) and ask for a new ETA. If the customer is a key account or the delay is more than 5 working days, propose `expedite_shipment` (needs approval).\\n3. Do not offer credits for carrier delays below 10 working days. Compensation above that needs a manager's approval and is out of scope for agents.\\n4. Tell the customer what happened, what we are doing and when we will update them. Do not promise a delivery date the carrier has not confirmed.\\n\"}, {\"runbook\": \"transport-damage\", \"score\": 3.63, \"text\": \"# Transport damage\\n\\nApplies when goods arrived damaged.\\n\\n1. Check the delivery event note for a damage remark on the proof of delivery (POD). A remark on the POD means the carrier accepted the damage.\\n2. With a POD remark: propose `reship_order` for the damaged quantity (needs approval) and `contact_carrier` to file a claim.\\n3. Without a POD remark: ask the customer for photos within 7 days before proposing a reship.\\n\"}]",
+        "result": "[{\"runbook\": \"late-delivery\", \"score\": 6.68, \"text\": \"# Late delivery\\n\\nApplies when the promised date has passed and the shipment is not delivered.\\n\\n1. Check shipment events. An `exception` event at a carrier hub means a carrier-side delay.\\n2. Carrier-side delay: contact the carrier (action `contact_carrier`) and ask for a new ETA. If the customer is a key account or the delay is more than 5 working days, propose `expedite_shipment` (needs approval).\\n3. Do not offer credits for carrier delays below 10 working days. Compensation above that needs a manager's approval and is out of scope for agents.\\n4. Tell the customer what happened, what we are doing and when we will update them. Do not promise a delivery date the carrier has not confirmed.\\n\"}, {\"runbook\": \"transport-damage\", \"score\": 2.96, \"text\": \"# Transport damage\\n\\nApplies when goods arrived damaged.\\n\\n1. Check the delivery event note for a damage remark on the proof of delivery (POD). A remark on the POD means the carrier accepted the damage.\\n2. With a POD remark: propose `reship_order` for the damaged quantity (needs approval) and `contact_carrier` to file a claim.\\n3. Without a POD remark: ask the customer for photos within 7 days before proposing a reship.\\n\"}]",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "get_shipment_events",
+      "detail": {
+        "arguments": {
+          "shipment_id": "SH-9001"
+        },
+        "result": "[{\"ts\": \"2026-11-06T08:10\", \"event\": \"picked_up\", \"location\": \"Espoo DC\"}, {\"ts\": \"2026-11-07T19:40\", \"event\": \"arrived_hub\", \"location\": \"NordFreight hub Tampere\"}, {\"ts\": \"2026-11-09T06:00\", \"event\": \"exception\", \"location\": \"NordFreight hub Tampere\", \"note\": \"Held at hub: linehaul capacity shortage\"}]",
+        "ok": true
+      }
+    },
+    {
+      "kind": "note",
+      "name": "invalid_proposal",
+      "detail": "1 validation error for Proposal\nevidence\n  List should have at least 1 item after validation, not 0 [type=too_short, input_value=[], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.14/v/too_short"
+    },
+    {
+      "kind": "tool",
+      "name": "submit_proposal",
+      "detail": {
+        "category": "carrier_delay",
+        "likely_cause": "Order SO-5001 (500 x BOX-A4-200) was picked up at Espoo DC on 2026-11-06 but was held at the NordFreight Tampere hub on 2026-11-09 because of a linehaul capacity shortage. The shipment is 9 working days past its 2026-11-10 promised date and has no delivery event yet. This is a carrier-side delay.",
+        "evidence": [
+          "get_order SO-5001: status shipped, promised_date 2026-11-10, carrier NordFreight, shipment SH-9001, working_days_late 9, customer C-201 (Pohjola Bakery Ltd, standard tier)",
+          "get_shipment_events SH-9001: 2026-11-06 picked_up at Espoo DC; 2026-11-07 arrived_hub NordFreight hub Tampere; 2026-11-09 exception at NordFreight hub Tampere: 'Held at hub: linehaul capacity shortage'. No delivery event.",
+          "Runbook late-delivery: exception at a carrier hub is a carrier-side delay; contact carrier for new ETA; expedite if delay is more than 5 working days; credits not offered below 10 working days."
+        ],
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5001",
+            "reason": "Shipment SH-9001 has been held at NordFreight hub Tampere since 2026-11-09 for linehaul capacity shortage. Ask NordFreight for a confirmed new ETA to Oulu.",
+            "amount_eur": null,
+            "new_address": null
+          },
+          {
+            "type": "expedite_shipment",
+            "order_id": "SO-5001",
+            "reason": "Delay is 9 working days, more than the 5-day threshold in the late-delivery runbook. Requires approval.",
+            "amount_eur": null,
+            "new_address": null
+          }
+        ],
+        "customer_reply": "Hi Anna,\n\nThank you for your message about order SO-5001. We are sorry it has not arrived by the promised date of 10 November, and we understand how urgent the boxes are for you.\n\nOur records show the order left our Espoo warehouse on 6 November and was held at the NordFreight hub in Tampere on 9 November because of a shortage of transport capacity on that route. The shipment has not been delivered yet.\n\nWe are asking NordFreight for a confirmed new delivery date, and we are also reviewing whether we can expedite the shipment. We will contact you as soon as we have the carrier's confirmed date. We cannot give you a delivery date until the carrier confirms it.\n\nKind regards,\nCustomer Support",
+        "confidence": "high"
+      }
+    },
+    {
+      "kind": "note",
+      "name": "escalated",
+      "detail": {
+        "to": "claude:claude-opus-5-5",
+        "reasons": [
+          "the model had to be corrected (a proposal that broke the schema)"
+        ]
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "get_order",
+      "detail": {
+        "arguments": {
+          "order_id": "SO-5001"
+        },
+        "result": "{\"order_id\": \"SO-5001\", \"customer_id\": \"C-201\", \"order_date\": \"2026-10-27\", \"status\": \"shipped\", \"lines\": [{\"sku\": \"BOX-A4-200\", \"qty\": 500, \"unit_price_eur\": 0.42}], \"promised_date\": \"2026-11-10\", \"carrier\": \"NordFreight\", \"shipment_id\": \"SH-9001\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Teollisuuskatu 5, Oulu\", \"customer\": {\"id\": \"C-201\", \"name\": \"Pohjola Bakery Ltd\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"standard\"}, \"working_days_late\": 9}",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "search_runbooks",
+      "detail": {
+        "arguments": {
+          "query": "late delivery carrier delay"
+        },
+        "result": "[{\"runbook\": \"late-delivery\", \"score\": 5.52, \"text\": \"# Late delivery\\n\\nApplies when the promised date has passed and the shipment is not delivered.\\n\\n1. Check shipment events. An `exception` event at a carrier hub means a carrier-side delay.\\n2. Carrier-side delay: contact the carrier (action `contact_carrier`) and ask for a new ETA. If the customer is a key account or the delay is more than 5 working days, propose `expedite_shipment` (needs approval).\\n3. Do not offer credits for carrier delays below 10 working days. Compensation above that needs a manager's approval and is out of scope for agents.\\n4. Tell the customer what happened, what we are doing and when we will update them. Do not promise a delivery date the carrier has not confirmed.\\n\"}, {\"runbook\": \"transport-damage\", \"score\": 1.71, \"text\": \"# Transport damage\\n\\nApplies when goods arrived damaged.\\n\\n1. Check the delivery event note for a damage remark on the proof of delivery (POD). A remark on the POD means the carrier accepted the damage.\\n2. With a POD remark: propose `reship_order` for the damaged quantity (needs approval) and `contact_carrier` to file a claim.\\n3. Without a POD remark: ask the customer for photos within 7 days before proposing a reship.\\n\"}]",
         "ok": true
       }
     },
@@ -74,30 +167,31 @@
       "name": "submit_proposal",
       "detail": {
         "category": "carrier_delay",
-        "likely_cause": "Order SO-5001 (500 x BOX-A4-200) is held at the NordFreight hub in Tampere due to a linehaul capacity shortage, a carrier-side delay. It has been past its promised date of 2026-11-10 for 9 working days with no movement since 2026-11-09.",
+        "likely_cause": "Shipment SH-9001 has been held at the NordFreight hub in Tampere since 2026-11-09 because the carrier is short of linehaul capacity. This is a delay on the carrier's side, and the order is now 9 working days past its promised date.",
         "evidence": [
-          "Order SO-5001: status shipped, promised_date 2026-11-10, carrier NordFreight, shipment SH-9001, customer C-201 (Pohjola Bakery Ltd, tier standard).",
-          "Shipment SH-9001 events: picked_up Espoo DC 2026-11-06 08:10; arrived_hub NordFreight hub Tampere 2026-11-07 19:40; exception at NordFreight hub Tampere 2026-11-09 06:00, note 'Held at hub: linehaul capacity shortage'. No later events.",
-          "Today is 2026-11-23. Working days past promised date (2026-11-10): 9, which is more than 5, so the late-delivery runbook allows expedite_shipment. It is under 10, so no credit applies.",
-          "Runbook 'late-delivery': carrier-side exception at hub -> contact_carrier for new ETA; expedite if delay > 5 working days; no credits below 10 working days."
+          "SO-5001: status shipped, promised_date 2026-11-10, working_days_late 9, carrier NordFreight, shipment SH-9001",
+          "SH-9001 2026-11-06T08:10 picked_up at Espoo DC",
+          "SH-9001 2026-11-07T19:40 arrived_hub at NordFreight hub Tampere",
+          "SH-9001 2026-11-09T06:00 exception at NordFreight hub Tampere: 'Held at hub: linehaul capacity shortage'. No later events.",
+          "Runbook late-delivery: an exception at a carrier hub means a carrier-side delay, so contact the carrier. A delay of more than 5 working days (here 9) means proposing expedite_shipment. No credit for carrier delays under 10 working days."
         ],
         "actions": [
           {
             "type": "contact_carrier",
             "order_id": "SO-5001",
-            "reason": "Shipment SH-9001 held at NordFreight hub Tampere since 2026-11-09 (linehaul capacity shortage). Request a confirmed new ETA and the current location of the shipment.",
+            "reason": "SH-9001 has been held at NordFreight hub Tampere since 2026-11-09 (linehaul capacity shortage). Ask NordFreight for a new ETA.",
             "amount_eur": null,
             "new_address": null
           },
           {
             "type": "expedite_shipment",
             "order_id": "SO-5001",
-            "reason": "Promised date 2026-11-10 is 9 working days overdue, more than the 5-working-day threshold. Customer is running out of boxes. Needs approval.",
+            "reason": "Carrier delay of 9 working days is more than the runbook's 5-day threshold. The customer says they are running out of boxes.",
             "amount_eur": null,
             "new_address": null
           }
         ],
-        "customer_reply": "Dear Anna,\n\nThank you for contacting us about order SO-5001. We apologise that it has not reached you by the promised date of 10 November.\n\nWe have checked the shipment. It is being held at the NordFreight hub in Tampere because of a shortage of linehaul capacity at the carrier. We have contacted NordFreight to ask for a confirmed delivery date and we are asking for the shipment to be expedited because of how urgent your need is. We cannot give you a delivery date until the carrier confirms it, but we will send you an update as soon as we have it, and no later than [DATE_1].\n\nIf you need to talk to us directly, please call [PHONE_1] or reply to [EMAIL_1].\n\nKind regards,\nCustomer Support\"",
+        "customer_reply": "Hi Anna,\n\nThank you for contacting us, and I'm sorry your order SO-5001 is late. I know you are running low on boxes.\n\nI checked the shipment. Our carrier NordFreight collected your 500 BOX-A4-200 boxes on 6 November, and they reached the NordFreight hub in Tampere on 7 November. Since 9 November the shipment has been held at that hub because the carrier does not have enough truck capacity for the next part of the route. The delay is on the carrier's side, and your goods are at the hub waiting to move on.\n\nNext, we will ask NordFreight for a new delivery estimate. We are also reviewing whether we can speed up the shipment. As soon as the carrier confirms a delivery date, we will let you know. We won't give you a date until they have confirmed it.\n\nSorry again for the trouble this is causing.\n\nKind regards,\nCustomer Support",
         "confidence": "high"
       }
     }

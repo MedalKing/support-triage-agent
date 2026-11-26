@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -22,7 +23,8 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from support_agent.agent import DEMO_TODAY, load_tickets  # noqa: E402
-from support_agent.escalation import auto_label, run_triage  # noqa: E402
+from support_agent.escalation import auto_label, final_attempt, run_triage  # noqa: E402
+from support_agent.proposal import reply_problems  # noqa: E402
 from support_agent.erp import ERP  # noqa: E402
 from support_agent.providers import ProviderError, make_provider  # noqa: E402
 
@@ -34,14 +36,28 @@ SECRETS = [  # every personal value in the sample data
 ]
 
 
+# A statement of how late the order is. Numbers after a comparison word are the runbook's
+# thresholds being quoted ("no credit below 10 working days late"), not the delay itself.
+# It covers the form "N working days late/past/overdue/behind/after", in any case.
+DELAY = re.compile(r"(?<!below )(?<!under )(?<!over )(?<!above )(?<!than )(?<!< )(?<!> )"
+                   r"\b(\d+) working days? (?:late|past|overdue|behind|after)", re.IGNORECASE)
+
+
+def proposal_text(p) -> str:
+    """Everything the agent wrote: cause, evidence, action reasons and the reply."""
+    return " ".join([p.likely_cause, *p.evidence, *(a.reason for a in p.actions), p.customer_reply])
+
+
 def score(case: dict, result) -> dict[str, bool]:
     p = result.proposal
-    # Only lookups that returned data count; a call that hit "not found" isn't evidence.
-    tools = {s.name for s in result.trace if s.kind == "tool" and s.detail.get("ok", True)}
+    # Only the steps of the model that made the final proposal count: after an escalation the
+    # strong model must have done its own lookups. Only lookups that returned data count.
+    steps = final_attempt(result.trace)
+    tools = {s.name for s in steps if s.kind == "tool" and s.detail.get("ok", True)}
     actions = {a.type for a in p.actions} if p else set()
     # With `order` set, a required action only counts when it targets that order.
     targeted = {a.type for a in p.actions if case.get("order") in (None, a.order_id)} if p else set()
-    seen = "\n".join(result.model_inputs)
+    seen = "\n".join(result.model_inputs)  # both attempts: neither model may see personal data
     checks = {
         "proposal": p is not None,
         "category": bool(p) and p.category == case["category"],
@@ -49,12 +65,16 @@ def score(case: dict, result) -> dict[str, bool]:
         "required_actions": set(case.get("must_propose", [])) <= targeted,
         "forbidden_actions": not (set(case.get("must_not_propose", [])) & actions),
         "no_pii_to_model": not any(s in seen for s in SECRETS),
+        "reply_ready": bool(p) and not reply_problems(p.customer_reply),
     }
+    if "working_days_late" in case:  # every "N working days late" the agent states is the true number
+        stated = {int(n) for n in DELAY.findall(proposal_text(p))} if p else set()
+        checks["working_days"] = bool(p) and stated <= {case["working_days_late"]}
     if case.get("policy_clean"):
         checks["policy"] = bool(p) and not result.policy_violations
     if "order" in case and "get_order" in case.get("must_call", []):
         # The lookup has to be of the right order, not just any order.
-        looked_up = {s.detail["arguments"].get("order_id") for s in result.trace
+        looked_up = {s.detail["arguments"].get("order_id") for s in steps
                      if s.kind == "tool" and s.name == "get_order" and s.detail.get("ok", True)}
         checks["looked_up_order"] = case["order"] in looked_up
     if "allowed_actions" in case:  # nothing beyond what the runbook allows for this case
@@ -81,6 +101,8 @@ async def main(provider_name: str, out_path: str | None) -> int:
             checks, error = score(case, result), result.error
             proposed = result.proposal and {
                 "category": result.proposal.category,
+                # What the agent said about the delay, so a working_days failure can be read later.
+                "stated_delay": DELAY.findall(proposal_text(result.proposal)),
                 "actions": [{"type": a.type, "order_id": a.order_id, "amount_eur": a.amount_eur}
                             for a in result.proposal.actions],
             }

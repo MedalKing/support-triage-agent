@@ -14,10 +14,11 @@ main { padding: 24px; max-width: 860px; }
 h1 { font-size: 18px; margin: 0 0 12px; }
 h2 { font-size: 18px; margin: 0 0 8px; }
 h3 { font-size: 14px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.ticket { display: block; width: 100%; text-align: left; padding: 10px; margin-bottom: 6px; border: 1px solid var(--line);
-  border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
-.ticket.active { border-color: var(--accent); }
-.id { display: block; font-size: 12px; color: var(--muted); }
+.ticket { display: block; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 2px; border: none;
+  border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; font-size: 14px; }
+.ticket:hover { background: var(--bg); }
+.ticket.active { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
+.id { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
 .row { display: flex; gap: 8px; }
 button, select { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
@@ -34,3 +35,36 @@ pre { white-space: pre-wrap; font-size: 13px; margin: 4px 0; }
 .step { margin-top: 10px; }
 @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } aside { border-right: none; border-bottom: 1px solid var(--line); } }
 .escalation { border: 1px solid var(--warn); border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 14px; }
+.small { font-size: 13px; }
+button.home { all: unset; cursor: pointer; font: inherit; color: var(--text); }
+button.home:focus-visible { outline: 2px solid var(--accent); }
+.audit { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); }
+.audit h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.audit .entry { padding: 4px 0; }
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); margin-top: 8px; }
+.ticket-body { line-height: 1.5; }
+.live { margin-top: 12px; }
+.live summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.live .row { margin-top: 8px; flex-wrap: wrap; }
+input[type=password] { padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+.notice { border-left: 3px solid var(--accent); padding: 6px 10px; font-size: 14px; }
+button.link { all: unset; cursor: pointer; color: var(--accent); font-size: 14px; display: inline-block; margin-bottom: 10px; }
+button.next { display: block; margin-top: 10px; }
+.attempt h3 { margin-top: 12px; }
+details.step { margin-top: 6px; }
+details.step summary { cursor: pointer; }
+button, input, select { font: inherit; }
+.landing { max-width: 700px; margin: 0 auto; padding: 14vh 24px 48px; }
+.landing h1 { font-size: 34px; line-height: 1.2; margin: 8px 0 16px; }
+.eyebrow { color: var(--accent); font-size: 14px; font-weight: 600; margin: 0; }
+.lead { font-size: 18px; line-height: 1.55; color: var(--muted); margin: 0 0 28px; }
+button.primary { font-size: 17px; padding: 12px 20px; border-radius: 8px; }
+.steps { margin: 28px 0 24px; padding-left: 20px; color: var(--muted); line-height: 2; }
+.steps button.link { margin: 0; font-size: 15px; }
+button.link.small { font-size: 13px; margin: 0; }
+.tourbar { margin-bottom: 16px; }
+.tourbar p { margin: 6px 0 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--panel); font-size: 14px; line-height: 1.5; }
+.row button.secondary { margin-top: 0; }
+.tag.declined { color: var(--error); border-color: var(--error); }
+.decline { margin-top: 8px; display: grid; gap: 6px; font-size: 14px; }
+.decline textarea { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); resize: vertical; }

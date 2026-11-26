@@ -4,26 +4,25 @@
   "escalation": null,
   "proposal": {
     "category": "partial_shipment_stockout",
-    "likely_cause": "SO-5002 was partially picked on 9 Nov (300 of 400 units) because BOX-ESD-300 was short at dispatch. The remaining 100 units are backordered, not lost in transit. Stock is still 0 with the next restock on 27 Nov.",
+    "likely_cause": "SO-5002 was partially picked on 2026-11-09 because only 300 of the 400 BOX-ESD-300 units were in stock at dispatch (on_hand 0). The remaining 100 units are backordered, and the next restock is 2026-11-27.",
     "evidence": [
-      "SO-5002 (C-202, Saimaa Electronics Oy, key_account): line BOX-ESD-300 qty 400, qty_shipped 300, promised 2026-11-12, status partially_shipped.",
-      "SH-9002 event 2026-11-09 09:00 picked_up at Espoo DC, note 'Partial: 300 of 400 units'.",
-      "SH-9002 event 2026-11-11 14:20 delivered at Lappeenranta (300 units received).",
-      "get_stock BOX-ESD-300: on_hand 0, next_restock 2026-11-27.",
-      "Runbook short-delivery: if stock was short at dispatch, the remainder is backordered; give the customer the expected ship date from next_restock; never credit a backorder that will ship."
+      "SH-9002 event 2026-11-09T09:00 picked_up at Espoo DC, note: Partial: 300 of 400 units",
+      "SH-9002 event 2026-11-11T14:20 delivered at Lappeenranta",
+      "SO-5002 line BOX-ESD-300: qty 400, qty_shipped 300, promised_date 2026-11-12, status partially_shipped, working_days_late 7",
+      "get_stock BOX-ESD-300: on_hand 0, next_restock 2026-11-27"
     ],
     "actions": [
       {
         "type": "no_action",
         "order_id": "SO-5002",
-        "reason": "Remaining 100 units of BOX-ESD-300 are backordered (stock 0 at dispatch, next restock 27 Nov). Runbook says to communicate the expected ship date and not issue a credit. No reship is possible until stock arrives. Ops should confirm a backorder ship date after the 27 Nov restock and ensure the 100 units ship on the first available stock.",
+        "reason": "Runbook short-delivery step 2: stock was 0 at dispatch, so the 100 missing units are backordered, not reshipped. No reship is possible until restock on 2026-11-27. No credit is appropriate for a backorder that will ship. Dispatch date for the remainder is set only after stock arrives, so none is promised.",
         "amount_eur": null,
         "new_address": null,
         "needs_approval": false,
         "approval_reason": null
       }
     ],
-    "customer_reply": "Dear Saimaa Electronics team,\n\nThank you for your message about order SO-5002. You are right that 300 of the 400 ESD boxes (BOX-ESD-300) were delivered on 11 November. The remaining 100 were not shipped because our stock was short when the order was picked on 9 November. They are on backorder.\n\nOur next restock of this item is expected on 27 November. We will ship the remaining 100 boxes as soon as the stock is available and will send you a confirmed ship date and tracking details. We understand that your production line needs them next week and we are sorry this does not meet that timing. If you need to discuss options for your production schedule, please reply and we will look at them with you.\n\nKind regards,\nCustomer Support\n\nContact on file: [EMAIL_1]",
+    "customer_reply": "Dear Saimaa Electronics,\n\nThank you for your message about order SO-5002. You are right that only 300 of the 400 ESD boxes (BOX-ESD-300) were delivered on 11 November. The shipment was picked on 9 November with 300 units because we did not have enough stock for the full order at that time. The remaining 100 units are on backorder.\n\nOur next restock of this item is expected on 27 November 2026. We cannot yet give you a dispatch date for the remaining 100 units, because that is set once the stock arrives. We will let you know as soon as we have a dispatch date and tracking details. We understand that your production line needs these boxes next week, and we will keep that in mind as we follow up.\n\nKind regards,\nCustomer Support",
     "confidence": "high"
   },
   "policy_violations": [],
@@ -35,7 +34,7 @@
         "arguments": {
           "order_id": "SO-5002"
         },
-        "result": "{\"order_id\": \"SO-5002\", \"customer_id\": \"C-202\", \"status\": \"partially_shipped\", \"lines\": [{\"sku\": \"BOX-ESD-300\", \"qty\": 400, \"qty_shipped\": 300, \"unit_price_eur\": 1.1}], \"promised_date\": \"2026-11-12\", \"carrier\": \"NordFreight\", \"shipment_id\": \"SH-9002\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Sähkötie 12, Lappeenranta\", \"customer\": {\"id\": \"C-202\", \"name\": \"Saimaa Electronics Oy\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"key_account\"}}",
+        "result": "{\"order_id\": \"SO-5002\", \"customer_id\": \"C-202\", \"order_date\": \"2026-10-29\", \"status\": \"partially_shipped\", \"lines\": [{\"sku\": \"BOX-ESD-300\", \"qty\": 400, \"qty_shipped\": 300, \"unit_price_eur\": 1.1}], \"promised_date\": \"2026-11-12\", \"carrier\": \"NordFreight\", \"shipment_id\": \"SH-9002\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Sähkötie 12, Lappeenranta\", \"customer\": {\"id\": \"C-202\", \"name\": \"Saimaa Electronics Oy\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"key_account\"}, \"working_days_late\": 7}",
         "ok": true
       }
     },
@@ -44,9 +43,9 @@
       "name": "search_runbooks",
       "detail": {
         "arguments": {
-          "query": "short delivery partial shipment stockout"
+          "query": "short delivery partial shipment stockout backorder"
         },
-        "result": "[{\"runbook\": \"short-delivery\", \"score\": 5.23, \"text\": \"# Short or partial delivery\\n\\nApplies when the customer received fewer units than ordered.\\n\\n1. Compare ordered quantity with `qty_shipped` on the order line and the pickup note on the shipment.\\n2. If stock was short at dispatch (`on_hand` 0), the remainder is backordered. Check `next_restock` and tell the customer the expected ship date for the remainder.\\n3. If stock is available, propose `reship_order` for the missing quantity (needs approval).\\n4. Never propose a credit for a backorder that will be shipped.\\n\"}, {\"runbook\": \"late-delivery\", \"score\": 2.11, \"text\": \"# Late delivery\\n\\nApplies when the promised date has passed and the shipment is not delivered.\\n\\n1. Check shipment events. An `exception` event at a carrier hub means a carrier-side delay.\\n2. Carrier-side delay: contact the carrier (action `contact_carrier`) and ask for a new ETA. If the customer is a key account or the delay is more than 5 working days, propose `expedite_shipment` (needs approval).\\n3. Do not offer credits for carrier delays below 10 working days. Compensation above that needs a manager's approval and is out of scope for agents.\\n4. Tell the customer what happened, what we are doing and when we will update them. Do not promise a delivery date the carrier has not confirmed.\\n\"}]",
+        "result": "[{\"runbook\": \"short-delivery\", \"score\": 6.34, \"text\": \"# Short or partial delivery\\n\\nApplies when the customer received fewer units than ordered.\\n\\n1. Compare ordered quantity with `qty_shipped` on the order line and the pickup note on the shipment.\\n2. If stock was short at dispatch (`on_hand` 0), the remainder is backordered. Check `next_restock` and tell the customer the expected restock date. The dispatch date for the remainder is set only after the stock arrives, so don't promise one, or tracking, yet.\\n3. If stock is available, propose `reship_order` for the missing quantity (needs approval).\\n4. Never propose a credit for a backorder that will be shipped.\\n\"}, {\"runbook\": \"late-delivery\", \"score\": 2.13, \"text\": \"# Late delivery\\n\\nApplies when the promised date has passed and the shipment is not delivered.\\n\\n1. Check shipment events. An `exception` event at a carrier hub means a carrier-side delay.\\n2. Carrier-side delay: contact the carrier (action `contact_carrier`) and ask for a new ETA. If the customer is a key account or the delay is more than 5 working days, propose `expedite_shipment` (needs approval).\\n3. Do not offer credits for carrier delays below 10 working days. Compensation above that needs a manager's approval and is out of scope for agents.\\n4. Tell the customer what happened, what we are doing and when we will update them. Do not promise a delivery date the carrier has not confirmed.\\n\"}]",
         "ok": true
       }
     },
@@ -73,28 +72,34 @@
       }
     },
     {
+      "kind": "note",
+      "name": "invalid_reply",
+      "detail": [
+        "remove the stray quotation marks around or in the reply"
+      ]
+    },
+    {
       "kind": "tool",
       "name": "submit_proposal",
       "detail": {
         "category": "partial_shipment_stockout",
-        "likely_cause": "SO-5002 was partially picked on 9 Nov (300 of 400 units) because BOX-ESD-300 was short at dispatch. The remaining 100 units are backordered, not lost in transit. Stock is still 0 with the next restock on 27 Nov.",
+        "likely_cause": "SO-5002 was partially picked on 2026-11-09 because only 300 of the 400 BOX-ESD-300 units were in stock at dispatch (on_hand 0). The remaining 100 units are backordered, and the next restock is 2026-11-27.",
         "evidence": [
-          "SO-5002 (C-202, Saimaa Electronics Oy, key_account): line BOX-ESD-300 qty 400, qty_shipped 300, promised 2026-11-12, status partially_shipped.",
-          "SH-9002 event 2026-11-09 09:00 picked_up at Espoo DC, note 'Partial: 300 of 400 units'.",
-          "SH-9002 event 2026-11-11 14:20 delivered at Lappeenranta (300 units received).",
-          "get_stock BOX-ESD-300: on_hand 0, next_restock 2026-11-27.",
-          "Runbook short-delivery: if stock was short at dispatch, the remainder is backordered; give the customer the expected ship date from next_restock; never credit a backorder that will ship."
+          "SH-9002 event 2026-11-09T09:00 picked_up at Espoo DC, note: Partial: 300 of 400 units",
+          "SH-9002 event 2026-11-11T14:20 delivered at Lappeenranta",
+          "SO-5002 line BOX-ESD-300: qty 400, qty_shipped 300, promised_date 2026-11-12, status partially_shipped, working_days_late 7",
+          "get_stock BOX-ESD-300: on_hand 0, next_restock 2026-11-27"
         ],
         "actions": [
           {
             "type": "no_action",
             "order_id": "SO-5002",
-            "reason": "Remaining 100 units of BOX-ESD-300 are backordered (stock 0 at dispatch, next restock 27 Nov). Runbook says to communicate the expected ship date and not issue a credit. No reship is possible until stock arrives. Ops should confirm a backorder ship date after the 27 Nov restock and ensure the 100 units ship on the first available stock.",
+            "reason": "Runbook short-delivery step 2: stock was 0 at dispatch, so the 100 missing units are backordered, not reshipped. No reship is possible until restock on 2026-11-27. No credit is appropriate for a backorder that will ship. Dispatch date for the remainder is set only after stock arrives, so none is promised.",
             "amount_eur": null,
             "new_address": null
           }
         ],
-        "customer_reply": "Dear Saimaa Electronics team,\n\nThank you for your message about order SO-5002. You are right that 300 of the 400 ESD boxes (BOX-ESD-300) were delivered on 11 November. The remaining 100 were not shipped because our stock was short when the order was picked on 9 November. They are on backorder.\n\nOur next restock of this item is expected on 27 November. We will ship the remaining 100 boxes as soon as the stock is available and will send you a confirmed ship date and tracking details. We understand that your production line needs them next week and we are sorry this does not meet that timing. If you need to discuss options for your production schedule, please reply and we will look at them with you.\n\nKind regards,\nCustomer Support\n\nContact on file: [EMAIL_1]",
+        "customer_reply": "Dear Saimaa Electronics,\n\nThank you for your message about order SO-5002. You are right that only 300 of the 400 ESD boxes (BOX-ESD-300) were delivered on 11 November. The shipment was picked on 9 November with 300 units because we did not have enough stock for the full order at that time. The remaining 100 units are on backorder.\n\nOur next restock of this item is expected on 27 November 2026. We cannot yet give you a dispatch date for the remaining 100 units, because that is set once the stock arrives. We will let you know as soon as we have a dispatch date and tracking details. We understand that your production line needs these boxes next week, and we will keep that in mind as we follow up.\n\nKind regards,\nCustomer Support",
         "confidence": "high"
       }
     }

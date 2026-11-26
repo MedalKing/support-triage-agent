@@ -94,7 +94,21 @@ def test_unknown_provider_is_a_client_error(client):
     assert client.post("/api/tickets/T-1003/triage?provider=gpt").status_code == 400
 
 
-def test_credit_cap_counts_credits_approved_on_other_tickets(client, monkeypatch):
+def test_a_second_credit_on_an_invoice_needs_a_manager_even_when_small(client, monkeypatch):
+    # Within the cap together (20 + 20 of 117.50 EUR), but it may be the same complaint twice.
+    body = triage(client, monkeypatch, {**CREDIT, "amount_eur": 20.0})
+    assert approve(client, body["proposal_id"], [0]).status_code == 200
+    use_script(monkeypatch, [[("get_order", {"order_id": "SO-5003"})],
+                             [("submit_proposal", proposal(category="pricing_error",
+                                                           actions=[{**CREDIT, "amount_eur": 20.0}]))]])
+    second = client.post("/api/tickets/T-1008/triage").json()
+    assert any("possible duplicate" in v for v in second["policy_violations"])
+    # The agent could see it coming: the lookup shows the credit already approved.
+    seen = [s["detail"]["result"] for s in second["trace"] if s["name"] == "get_order"]
+    assert '"approved_credits": [{"ticket_id": "T-1003", "amount_eur": 20.0}]' in seen[0]
+
+
+def test_a_second_credit_is_refused_at_approval_too(client, monkeypatch):
     # T-1003 and T-1008 are about the same invoice (470 EUR, cap 117.50 EUR).
     body = triage(client, monkeypatch, {**CREDIT, "amount_eur": 100.0})
     assert approve(client, body["proposal_id"], [0]).status_code == 200
@@ -102,7 +116,7 @@ def test_credit_cap_counts_credits_approved_on_other_tickets(client, monkeypatch
               [("submit_proposal", proposal(category="pricing_error", actions=[{**CREDIT, "amount_eur": 60.0}]))]]
     use_script(monkeypatch, script)
     second = client.post("/api/tickets/T-1008/triage").json()
-    assert any("already approved" in v for v in second["policy_violations"])
+    assert any("possible duplicate" in v and "100.00 EUR on T-1003" in v for v in second["policy_violations"])
     r = client.post("/api/tickets/T-1008/approve",
                     json={"proposal_id": second["proposal_id"], "action_indexes": [0], "approved_by": "reviewer"})
     assert r.status_code == 422
@@ -148,3 +162,48 @@ def test_two_approvals_at_once_apply_the_action_once(client, monkeypatch):
     assert sorted(codes) == [200, 409]
     assert len(client.get("/api/audit").json()) == 1
 
+
+
+# --- declining with a reason ---
+
+def decline(client, proposal_id, indexes, reason="the quote was for a different box"):
+    return client.post("/api/tickets/T-1003/decline", json={
+        "proposal_id": proposal_id, "action_indexes": indexes, "declined_by": "reviewer", "reason": reason})
+
+
+def test_a_declined_action_is_logged_with_its_reason_and_is_final(client, monkeypatch):
+    body = triage(client, monkeypatch, CREDIT)
+    r = decline(client, body["proposal_id"], [0])
+    assert r.status_code == 200
+    entry = client.get("/api/audit").json()[-1]
+    assert entry["decision"] == "declined" and entry["decline_reason"] == "the quote was for a different box"
+    assert entry["declined_by"] == "reviewer" and entry["amount_eur"] == 60.0
+    assert approve(client, body["proposal_id"], [0]).status_code == 409  # a decision is final
+    assert decline(client, body["proposal_id"], [0]).status_code == 409
+
+
+def test_an_approved_action_cannot_be_declined_afterwards(client, monkeypatch):
+    body = triage(client, monkeypatch, CREDIT)
+    assert approve(client, body["proposal_id"], [0]).status_code == 200
+    assert decline(client, body["proposal_id"], [0]).status_code == 409
+
+
+@pytest.mark.parametrize("reason", ["", "   ", "x" * 501])
+def test_a_decline_needs_a_real_reason(client, monkeypatch, reason):
+    body = triage(client, monkeypatch, CREDIT)
+    assert decline(client, body["proposal_id"], [0], reason=reason).status_code == 422
+    assert client.get("/api/audit").json() == []
+
+
+def test_a_blocked_action_can_still_be_declined(client, monkeypatch):
+    body = triage(client, monkeypatch, {**CREDIT, "amount_eur": 470.0})
+    assert body["policy_violations"]
+    assert decline(client, body["proposal_id"], [0], reason="over the cap").status_code == 200
+
+
+def test_a_declined_credit_does_not_count_as_an_earlier_credit(client, monkeypatch):
+    body = triage(client, monkeypatch, CREDIT)
+    assert decline(client, body["proposal_id"], [0]).status_code == 200
+    use_script(monkeypatch, script_for(CREDIT))
+    second = client.post("/api/tickets/T-1008/triage").json()
+    assert second["policy_violations"] == []  # nothing was credited, so no duplicate

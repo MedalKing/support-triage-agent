@@ -43,10 +43,11 @@ def test_a_clear_ticket_stays_with_the_fast_model():
 @pytest.mark.parametrize("overrides, reason", [
     ({"confidence": "medium"}, "confidence was medium"),
     ({"category": "other"}, "no runbook category fits"),
+    ({"actions": []}, "no actions at all"),  # Haiku did this on T-1008 with high confidence
     ({"actions": [{"type": "contact_carrier", "order_id": "SO-5001", "reason": "x", "amount_eur": None,
                    "new_address": None},
                   {"type": "no_action", "order_id": "SO-5005", "reason": "x", "amount_eur": None,
-                   "new_address": None}]}, "mixes no_action"),
+                   "new_address": None}]}, "no action and real actions"),
     ({"actions": [{"type": "issue_credit", "order_id": "SO-5001", "reason": "x", "amount_eur": 9999.0,
                    "new_address": None}]}, "breaks policy"),
 ])
@@ -68,7 +69,7 @@ def test_no_proposal_is_escalated():
         p = ScriptedProvider([LOOKUP])  # never submits
         p.name = "fast"
         return p
-    assert escalate(gives_up).escalation["reasons"][0].startswith("no proposal")
+    assert escalate(gives_up).escalation["reasons"][0].startswith("it gave no usable proposal")
 
 
 def test_a_failing_fast_model_is_escalated():
@@ -104,7 +105,7 @@ def client(monkeypatch, tmp_path):
 
 def record(tmp_path, ticket_id="T-1001"):
     result = anyio.run(lambda: triage(TICKETS[ticket_id], scripted("claude:test", {})(), ERP()))
-    saved = result.to_dict(restore_pii=False)
+    saved = result.to_dict()
     (tmp_path / f"{ticket_id}.json").write_text(json.dumps(saved), encoding="utf-8")
     return saved
 
@@ -135,10 +136,10 @@ def test_only_offered_providers_can_be_used(client, monkeypatch):
 def test_recorded_runs_need_no_code_and_can_be_approved(client, monkeypatch, tmp_path):
     monkeypatch.setenv("DEMO_ACCESS_CODE", "letmein")
     saved = record(tmp_path)
-    assert "[EMAIL_1]" in saved["proposal"]["customer_reply"]  # saved without personal data
+    assert "anna.virtanen" not in json.dumps(saved)  # saved without personal data
     body = client.get("/api/tickets/T-1001/recorded").json()
     assert body["recorded"] is True
-    assert "anna.virtanen@pohjolabakery.example" in body["proposal"]["customer_reply"]  # restored for the reviewer
+    assert body["redactions"] == saved["redactions"]  # what the live run hid, not just the ticket
     r = client.post("/api/tickets/T-1001/approve",
                     json={"proposal_id": body["proposal_id"], "action_indexes": [0], "approved_by": "visitor"})
     assert r.status_code == 200
@@ -157,3 +158,57 @@ def test_visitors_do_not_see_each_others_approvals(client, tmp_path):
     r = other.post("/api/tickets/T-1001/approve",
                    json={"proposal_id": body["proposal_id"], "action_indexes": [0], "approved_by": "visitor"})
     assert r.status_code == 409
+
+
+def test_reset_starts_the_visitors_demo_over(client, tmp_path):
+    record(tmp_path)
+    body = client.get("/api/tickets/T-1001/recorded").json()
+    client.post("/api/tickets/T-1001/approve",
+                json={"proposal_id": body["proposal_id"], "action_indexes": [0], "approved_by": "visitor"})
+    assert len(client.get("/api/audit").json()) == 1
+    assert client.post("/api/reset").status_code == 200
+    assert client.get("/api/audit").json() == []
+    r = client.post("/api/tickets/T-1001/approve",
+                    json={"proposal_id": body["proposal_id"], "action_indexes": [0], "approved_by": "visitor"})
+    assert r.status_code == 409  # the old proposal is gone with the session's state
+
+
+def test_a_run_that_ends_after_start_over_is_not_stored(client, monkeypatch):
+    async def reset_meanwhile(ticket, erp, provider=None, **kwargs):
+        result = await triage(ticket, scripted("fast", {})(), erp)
+        for s in api.sessions.values():  # the visitor presses Start over while the model works
+            s.erp, s.results = ERP(), {}
+        return result
+    monkeypatch.setattr(api, "run_triage", reset_meanwhile)
+    assert client.post("/api/tickets/T-1001/triage").status_code == 409
+    assert client.post("/api/tickets/T-1001/approve", json={
+        "proposal_id": "x", "action_indexes": [0], "approved_by": "v"}).status_code == 409  # nothing stored
+
+
+def test_a_first_model_that_fails_midway_still_counts_for_the_privacy_check():
+    class FailsAfterLookup(ScriptedProvider):
+        def step(self):
+            if not self.script:
+                raise ProviderError("refused")
+            return super().step()
+
+    def fails():
+        p = FailsAfterLookup([LOOKUP])
+        p.name = "fast"
+        return p
+    result = escalate(fails)
+    assert result.escalation["reasons"] == ["the first model failed: refused"]
+    # What the first model saw before failing is kept: the trace and its inputs.
+    assert [s.name for s in result.trace][:2] == ["first_attempt", "get_order"]
+    assert any("Pohjola Bakery" in text for text in result.model_inputs[:2])
+
+
+def test_a_carrier_redirect_needs_a_tick_but_a_status_request_does_not():
+    actions = [{"type": "contact_carrier", "order_id": "SO-5005", "reason": "ask for news",
+                "amount_eur": None, "new_address": None},
+               {"type": "contact_carrier", "order_id": "SO-5005", "reason": "redirect",
+                "amount_eur": None, "new_address": "Satamatie 2, Kemi"}]
+    script = [[("get_order", {"order_id": "SO-5005"})], [("submit_proposal", proposal(actions=actions))]]
+    shown = anyio.run(lambda: triage(TICKETS["T-1005"], ScriptedProvider(script), ERP())).to_dict()
+    assert [a["needs_approval"] for a in shown["proposal"]["actions"]] == [False, True]
+    assert "somewhere else" in shown["proposal"]["actions"][1]["approval_reason"]

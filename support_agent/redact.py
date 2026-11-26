@@ -1,8 +1,9 @@
 """Pseudonymise personal data before it reaches the model.
 
 Emails, phone numbers, IBANs and Finnish personal identity codes are replaced with stable
-placeholders such as [EMAIL_1]. The mapping stays on our side, so a draft reply can be
-restored for the human reviewer without the model ever seeing the real values.
+placeholders such as [EMAIL_1]. The mapping stays on our side and the real values never reach
+the model. The draft reply needs none of them: it goes to the customer, who knows their own
+details, so a reply with a placeholder is sent back to the model (see proposal.reply_problems).
 """
 
 from __future__ import annotations
@@ -22,8 +23,6 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 MIN_PHONE_DIGITS = 7  # shorter digit runs are quantities or ids, not phone numbers
 ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 MIN_IBAN_DIGITS = 10  # a real IBAN has many digits; this keeps words like "ab12 this case" out
-# Only contact details go back into the draft reply. Bank accounts and identity codes never do.
-RESTORABLE = {"EMAIL", "PHONE"}
 
 
 @dataclass
@@ -54,12 +53,6 @@ class Redactor:
             self.forward[value] = f"[{kind}_{self.counters[kind]}]"
         return self.forward[value]
 
-    def restore(self, text: str) -> str:
-        """Put contact details back for the human reviewer. Bank accounts and identity codes stay hidden."""
-        for value, placeholder in self.forward.items():
-            if placeholder[1:].split("_")[0] in RESTORABLE:
-                text = text.replace(placeholder, value)
-        return text
 
     @property
     def secrets(self) -> list[str]:

@@ -8,7 +8,7 @@ POST /api/tickets/{id}/approve   applies the actions a person approved.
 
 Actions that break policy are refused here as well as in the UI. An approval names the
 proposal it was given for, so a newer triage can't swap the actions underneath the
-reviewer, and each action can be applied only once.
+reviewer, and each action can be decided only once: applied, or declined with a reason.
 
 Each visitor gets their own session (a cookie): their own copy of the sample ERP, their
 own proposals and their own audit log, so visitors never see or undo each other's approvals.
@@ -121,18 +121,40 @@ def check_access_code(code: str | None) -> None:
 
 # --- endpoints -----------------------------------------------------------------------
 
+def recorded_escalations() -> dict[str, dict[str, Any]]:
+    """Which recorded runs were redone by the stronger model, why, and whether the second
+    model proposed different actions. The page's tour uses it, so it always points at a run
+    that really escalated, whichever that was when recorded."""
+    out = {}
+    for path in sorted(RECORDED_DIR.glob("*.json")):
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        if not saved.get("escalation"):
+            continue
+        names = [s["name"] for s in saved["trace"]]
+        before = saved["trace"][:names.index("escalated")] if "escalated" in names else []
+        first = next((s["detail"] for s in before if s["name"] == "submit_proposal"), None)
+        final = saved["proposal"]
+        # no_action on a different order id is still no action, so it doesn't count as a change.
+        actions = lambda p: sorted(json.dumps([a["type"], None if a["type"] == "no_action" else a["order_id"],  # noqa: E731
+                                               a["amount_eur"], a["new_address"]]) for a in p["actions"]) if p else None
+        out[path.stem] = {"reasons": saved["escalation"]["reasons"],
+                          "changed": actions(first) != actions(final)}
+    return out
+
+
 @app.get("/api/config")
 def config() -> dict[str, Any]:
     return {
         "providers": providers_offered(),
         "access_code_required": bool(os.environ.get("DEMO_ACCESS_CODE")),
         "recorded": sorted(p.stem for p in RECORDED_DIR.glob("*.json")),
+        "escalated": recorded_escalations(),
     }
 
 
 @app.get("/api/tickets")
 def list_tickets(s: Session = Depends(session)) -> list[dict[str, Any]]:
-    return [{**t, "triaged": t["id"] in s.results} for t in tickets.values()]
+    return list(tickets.values())
 
 
 @app.post("/api/tickets/{ticket_id}/triage")
@@ -147,12 +169,15 @@ async def live_triage(ticket_id: str, request: Request, provider: str | None = N
         raise HTTPException(400, f"provider {name!r} is not offered here; use one of {providers_offered()}")
     check_access_code(x_access_code)
     limiter.check(visitor_id(request))
+    erp = s.erp
     try:
-        result = await run_triage(ticket, s.erp, name)
+        result = await run_triage(ticket, erp, name)
     except ProviderError as e:
         raise HTTPException(502, str(e)) from e
     except ValueError as e:  # unknown provider or a bad AGENT_TODAY
         raise HTTPException(400, str(e)) from e
+    if s.erp is not erp:  # the visitor pressed Start over while the run was going
+        raise HTTPException(409, "The demo was reset while this ran. Run it again.")
     s.results[ticket_id] = result
     return result.to_dict()
 
@@ -164,6 +189,12 @@ def recorded_triage(ticket_id: str, s: Session = Depends(session)) -> dict[str, 
     path = RECORDED_DIR / f"{ticket_id}.json"
     if ticket is None or not path.exists():
         raise HTTPException(404, "no recorded run for this ticket")
+    result = s.results.get(ticket_id)
+    if result is not None and result.recorded and result.proposal is not None:
+        # Coming back to a ticket keeps what was approved on it; only the policy check is
+        # redone, since approvals on other tickets may have changed the answer.
+        result.policy_violations = check_policy(result.proposal, ticket["customer_id"], s.erp, result.proposal_id)
+        return result.to_dict()
     result = load_recorded(ticket, json.loads(path.read_text(encoding="utf-8")), s.erp)
     s.results[ticket_id] = result
     return result.to_dict()
@@ -176,14 +207,12 @@ def load_recorded(ticket: dict[str, Any], saved: dict[str, Any], erp: ERP) -> Tr
         raw["actions"] = [{k: v for k, v in a.items() if k not in ("needs_approval", "approval_reason")}
                           for a in raw["actions"]]
         proposal = Proposal.model_validate(raw)
-    # Saved with placeholders in the reply. Redacting the ticket again gives the same mapping,
-    # so the reply can be restored for the reviewer as in a live run.
     redactor = Redactor()
     redactor.redact(ticket_message(ticket))
     result = TriageResult(
         ticket["id"], saved["provider"], proposal, [],
         [TraceStep(t["kind"], t["name"], t["detail"]) for t in saved["trace"]], redactor,
-        escalation=saved.get("escalation"), recorded=True,
+        escalation=saved.get("escalation"), recorded=True, saved_redactions=saved.get("redactions"),
     )
     if proposal is not None:  # policy is checked again against this visitor's ERP
         result.policy_violations = check_policy(proposal, ticket["customer_id"], erp, result.proposal_id)
@@ -191,46 +220,61 @@ def load_recorded(ticket: dict[str, Any], saved: dict[str, Any], erp: ERP) -> Tr
     return result
 
 
+def _not_blank(value: str) -> str:
+    if not value.strip():
+        raise ValueError("must not be blank")
+    return value.strip()
+
+
 class Approval(BaseModel):
     proposal_id: str
     action_indexes: list[StrictInt] = Field(min_length=1)
     approved_by: str = Field(min_length=1, max_length=100)
-
-    @field_validator("approved_by")
-    @classmethod
-    def _not_blank(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("approved_by must not be blank")
-        return value.strip()
+    _check = field_validator("approved_by")(_not_blank)
 
 
-# `async def` with no await inside: the check and the write run in one step on the event loop,
-# so two approvals of the same action can't both pass the check.
-@app.post("/api/tickets/{ticket_id}/approve")
-async def approve(ticket_id: str, approval: Approval, s: Session = Depends(session)) -> dict[str, Any]:
+class Decline(BaseModel):
+    proposal_id: str
+    action_indexes: list[StrictInt] = Field(min_length=1)
+    declined_by: str = Field(min_length=1, max_length=100)
+    reason: str = Field(min_length=1, max_length=500)  # required: a "no" without a reason teaches nobody anything
+    _check = field_validator("declined_by", "reason")(_not_blank)
+
+
+def selected_actions(ticket_id: str, proposal_id: str, indexes: list[int], s: Session) -> TriageResult:
+    """Check a reviewer's selection before anything is written; return the result it belongs to."""
     if ticket_id not in tickets:
         raise HTTPException(404, "ticket not found")
     result = s.results.get(ticket_id)
     if result is None or result.proposal is None:
         raise HTTPException(409, "triage the ticket first")
-    if approval.proposal_id != result.proposal_id:
+    if proposal_id != result.proposal_id:
         raise HTTPException(409, "the proposal has changed since you loaded it; review it again")
-    if check_policy(result.proposal, tickets[ticket_id]["customer_id"], s.erp, result.proposal_id):
-        raise HTTPException(422, "proposal violates policy; fix it by hand instead")
-    # Validate the whole selection before writing anything.
     actions = result.proposal.actions
-    indexes = approval.action_indexes
     if len(set(indexes)) != len(indexes):
         raise HTTPException(422, "an action is selected twice")
     for i in indexes:
         if not 0 <= i < len(actions):
             raise HTTPException(422, f"no action {i} in this proposal")
         if actions[i].type == "no_action":
-            raise HTTPException(422, f"action {i} is no_action; there is nothing to apply")
+            raise HTTPException(422, f"action {i} is no_action; there is nothing to decide")
         if i in result.applied:
             raise HTTPException(409, f"action {i} was already applied")
+        if i in result.declined:
+            raise HTTPException(409, f"action {i} was already declined")
+    return result
+
+
+# `async def` with no await inside: the check and the write run in one step on the event loop,
+# so two approvals of the same action can't both pass the check.
+@app.post("/api/tickets/{ticket_id}/approve")
+async def approve(ticket_id: str, approval: Approval, s: Session = Depends(session)) -> dict[str, Any]:
+    result = selected_actions(ticket_id, approval.proposal_id, approval.action_indexes, s)
+    if check_policy(result.proposal, tickets[ticket_id]["customer_id"], s.erp, result.proposal_id):
+        raise HTTPException(422, "proposal violates policy; fix it by hand instead")
+    actions = result.proposal.actions
     applied = []
-    for i in indexes:
+    for i in approval.action_indexes:
         action = actions[i].model_dump()
         applied.append(s.erp.apply_action({"ticket_id": ticket_id, "proposal_id": result.proposal_id, **action},
                                           approval.approved_by))
@@ -238,9 +282,29 @@ async def approve(ticket_id: str, approval: Approval, s: Session = Depends(sessi
     return {"applied": applied}
 
 
+# Declining works on blocked proposals too: saying no to an out-of-policy action is a decision.
+@app.post("/api/tickets/{ticket_id}/decline")
+async def decline(ticket_id: str, choice: Decline, s: Session = Depends(session)) -> dict[str, Any]:
+    result = selected_actions(ticket_id, choice.proposal_id, choice.action_indexes, s)
+    declined = []
+    for i in choice.action_indexes:
+        action = result.proposal.actions[i].model_dump()
+        declined.append(s.erp.record_decline({"ticket_id": ticket_id, "proposal_id": result.proposal_id, **action},
+                                             choice.declined_by, choice.reason))
+        result.declined[i] = choice.reason
+    return {"declined": declined}
+
+
 @app.get("/api/audit")
 def audit(s: Session = Depends(session)) -> list[dict[str, Any]]:
     return s.erp.audit_log
+
+
+@app.post("/api/reset")
+def reset(s: Session = Depends(session)) -> dict[str, str]:
+    """Start this visitor's demo over: a fresh copy of the sample ERP, no proposals, empty log."""
+    s.erp, s.results = ERP(), {}
+    return {"status": "reset"}
 
 
 @app.get("/healthz")

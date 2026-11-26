@@ -9,6 +9,7 @@ The signals are things code can check, not the model's say-so alone:
 - a proposal that breaks policy,
 - the model rated its own confidence below high,
 - the category is "other" (no runbook fits),
+- no actions at all, not even no_action (the model didn't decide anything),
 - no_action sits next to real actions (the model couldn't decide whether to act),
 - the model had to be corrected first (proposal refused, or fields dropped from it).
 """
@@ -25,13 +26,20 @@ from .providers import ClaudeProvider, Provider, ProviderError, make_provider
 
 FAST_MODEL = "claude-haiku-5-5"
 STRONG_MODEL = "claude-opus-5-5"
-CORRECTION_NOTES = {"invalid_proposal", "proposal_without_lookup", "dropped_field"}
+# A fixed-up reply (invalid_reply) is not here on purpose: wording is cheap to correct and says
+# nothing about whether the investigation was right.
+CORRECTION_NOTES = {
+    "invalid_proposal": "a proposal that broke the schema",
+    "proposal_without_lookup": "a proposal before looking anything up",
+    "dropped_field": "an amount or address on the wrong action",
+}
 
 
 def escalation_reasons(result: TriageResult) -> list[str]:
     """Why this run should be redone by the stronger model. Empty means the run stands."""
     if result.proposal is None:
-        return [f"no proposal: {result.error or 'unknown error'}"]
+        error = (result.error or "unknown error").rstrip(".")
+        return [f"it gave no usable proposal ({error[0].lower()}{error[1:]})"]
     reasons = []
     if result.policy_violations:
         reasons.append("the proposal breaks policy")
@@ -40,11 +48,13 @@ def escalation_reasons(result: TriageResult) -> list[str]:
     if result.proposal.category == "other":
         reasons.append("no runbook category fits")
     types = {a.type for a in result.proposal.actions}
+    if not types:  # not even no_action: the model didn't decide anything
+        reasons.append("it proposed no actions at all, not even no_action")
     if "no_action" in types and len(types) > 1:
-        reasons.append("the proposal mixes no_action with real actions")
-    corrected = sorted({s.name for s in result.trace if s.kind == "note" and s.name in CORRECTION_NOTES})
+        reasons.append("it proposed taking no action and real actions at the same time")
+    corrected = sorted({CORRECTION_NOTES[s.name] for s in result.trace if s.kind == "note" and s.name in CORRECTION_NOTES})
     if corrected:
-        reasons.append("the model had to be corrected: " + ", ".join(corrected))
+        reasons.append("the model had to be corrected (" + "; ".join(corrected) + ")")
     return reasons
 
 
@@ -69,7 +79,9 @@ async def triage_with_escalation(
         reasons = escalation_reasons(first)
         first_trace, first_inputs = first.trace, first.model_inputs
     except ProviderError as e:  # e.g. a refusal or max_tokens on the small model
-        reasons, first_trace, first_inputs = [f"the first model failed: {e}"], [], []
+        partial = getattr(e, "partial", None)  # what the first model saw before it failed
+        reasons = [f"the first model failed: {e}"]
+        first_trace, first_inputs = (partial.trace, partial.model_inputs) if partial else ([], [])
     if not reasons:
         return first
 
@@ -80,6 +92,13 @@ async def triage_with_escalation(
         TraceStep("note", "escalated", {"to": second.provider, "reasons": reasons})]
     second.model_inputs[:0] = first_inputs  # both models' inputs count for the privacy check
     return second
+
+
+def final_attempt(trace: list[TraceStep]) -> list[TraceStep]:
+    """The steps of the model that made the final proposal: after an escalation, the strong
+    model's own steps only, so its proposal can't lean on lookups the first model made."""
+    marks = [i for i, s in enumerate(trace) if s.kind == "note" and s.name == "escalated"]
+    return trace[marks[-1] + 1:] if marks else trace
 
 
 def auto_label() -> str:

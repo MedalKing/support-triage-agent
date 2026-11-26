@@ -1,4 +1,4 @@
-export type Ticket = { id: string; customer_id: string; subject: string; body: string; triaged: boolean };
+export type Ticket = { id: string; customer_id: string; subject: string; body: string };
 export type Action = {
   type: string;
   order_id: string;
@@ -21,6 +21,7 @@ export type TriageResult = {
   ticket_id: string;
   proposal_id: string;
   applied: number[];
+  declined: Record<string, string>; // action index -> the reviewer's reason
   provider: string;
   escalation: { from: string; to: string; reasons: string[] } | null;
   recorded: boolean;
@@ -30,8 +31,26 @@ export type TriageResult = {
   redactions: string[];
   error: string | null;
 };
+export type AuditEntry = {
+  ts: string;
+  decision: "approved" | "declined";
+  approved_by?: string;
+  declined_by?: string;
+  decline_reason?: string;
+  ticket_id: string;
+  type: string;
+  order_id: string;
+  amount_eur: number | null;
+  new_address: string | null;
+};
 
-export type Config = { providers: string[]; access_code_required: boolean; recorded: string[] };
+export type Config = {
+  providers: string[];
+  access_code_required: boolean;
+  recorded: string[];
+  // Recorded runs redone by the stronger model: why, and whether it proposed different actions.
+  escalated: Record<string, { reasons: string[]; changed: boolean }>;
+};
 
 async function call<T>(path: string, init?: RequestInit, headers: Record<string, string> = {}): Promise<T> {
   const r = await fetch(path, { ...init, headers: { "Content-Type": "application/json", ...headers } });
@@ -46,7 +65,14 @@ export const triage = (id: string, provider: string, accessCode: string) =>
     accessCode ? { "X-Access-Code": accessCode } : {});
 export const recorded = (id: string) => call<TriageResult>(`/api/tickets/${id}/recorded`);
 export const approve = (id: string, proposal_id: string, action_indexes: number[]) =>
-  call<{ applied: unknown[] }>(`/api/tickets/${id}/approve`, {
+  call<{ applied: AuditEntry[] }>(`/api/tickets/${id}/approve`, {
     method: "POST",
     body: JSON.stringify({ proposal_id, action_indexes, approved_by: "demo reviewer" }),
   });
+export const decline = (id: string, proposal_id: string, action_indexes: number[], reason: string) =>
+  call<{ declined: AuditEntry[] }>(`/api/tickets/${id}/decline`, {
+    method: "POST",
+    body: JSON.stringify({ proposal_id, action_indexes, declined_by: "demo reviewer", reason }),
+  });
+export const auditLog = () => call<AuditEntry[]>("/api/audit");
+export const reset = () => call<{ status: string }>("/api/reset", { method: "POST" });

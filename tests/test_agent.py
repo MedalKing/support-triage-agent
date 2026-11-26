@@ -19,7 +19,7 @@ def proposal(**overrides):
         "evidence": ["SH-9001 exception 2026-11-09 at NordFreight hub Tampere"],
         "actions": [{"type": "contact_carrier", "order_id": "SO-5001", "reason": "Ask for new ETA",
                      "amount_eur": None, "new_address": None}],
-        "customer_reply": "Hi, we are on it. We will update you at [EMAIL_1].",
+        "customer_reply": "Hi, we are on it and will update you within two working days.",
         "confidence": "high",
     }
     return {**base, **overrides}
@@ -53,9 +53,7 @@ def test_model_never_sees_personal_data():
     everything = "\n".join(provider.seen)
     for secret in ["FI21 1234 5600 0007 85", "131052-308T", "mikko@laplandgear.example", "222 3333"]:
         assert secret not in everything
-    # ...but the reviewer gets the reply back with real values.
-    assert "mikko@laplandgear.example" in result.to_dict()["proposal"]["customer_reply"]
-    assert "[EMAIL_1]" in result.to_dict(restore_pii=False)["proposal"]["customer_reply"]
+    assert {"[EMAIL_1]", "[IBAN_1]", "[HETU_1]"} <= set(result.to_dict()["redactions"])
 
 
 def test_contact_details_in_erp_results_are_redacted_too():
