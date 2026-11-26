@@ -196,6 +196,7 @@ export default function App() {
     setTouring(false);
     setView("inbox");
     open((inbox[0] ?? tickets[0]).id);
+    setMobileList(true);
   }
 
   async function setDone(done: boolean) {
