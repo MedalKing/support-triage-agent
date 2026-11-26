@@ -91,6 +91,8 @@ export default function App() {
   const [reason, setReason] = useState("");
   const [view, setView] = useState<"inbox" | "archive">("inbox");
   const [query, setQuery] = useState("");
+  // The tour shows only for visitors who started it; anyone else just works the inbox.
+  const [touring, setTouring] = useState(false);
   // The ticket on screen. A triage answer for a ticket the reviewer has left is dropped.
   const current = useRef<string | null>(null);
 
@@ -195,6 +197,17 @@ export default function App() {
     }
   }
 
+  function startTour(id: string) {
+    setTouring(true);
+    open(id);
+  }
+
+  function skipTour() {
+    setTouring(false);
+    setView("inbox");
+    open((inbox[0] ?? tickets[0]).id);
+  }
+
   async function setDone(done: boolean) {
     if (!selected) return;
     try {
@@ -253,8 +266,9 @@ export default function App() {
   const tour = [...TOUR, ...(escalation ? [escalation] : [])];
   const creditApproved = !!result?.proposal?.actions.some((a, i) => a.type === "issue_credit" && result.applied.includes(i));
   // The next step of the tour, offered where the visitor is.
-  const next =
-    selected?.id === "T-1007" && result?.proposal
+  const next = !touring
+    ? null
+    : selected?.id === "T-1007" && result?.proposal
       ? { id: "T-1003", label: "Next: step 2, a credit and then a second one →" }
       : selected?.id === "T-1003" && result?.proposal
         ? creditApproved
@@ -274,28 +288,32 @@ export default function App() {
           It reads customer emails for a made-up packaging company, looks up the order and proposes what to do. It can't
           change anything itself: you approve each action, and rules in code block what's out of policy.
         </p>
-        <button className="primary" onClick={() => open(tour[0].ticket)} disabled={!tickets.length}>
-          Start the 3-minute tour →
-        </button>
+        <div className="row start">
+          <button className="primary" onClick={() => startTour(tour[0].ticket)} disabled={!tickets.length}>
+            Start the 3-minute tour →
+          </button>
+          <button className="secondary big" onClick={skipTour} disabled={!tickets.length}>
+            Skip the tour, open the inbox
+          </button>
+        </div>
         <ol className="steps">
           {tour.map((step) => (
             <li key={step.ticket}>
-              <button className="link" onClick={() => open(step.ticket)}>
+              <button className="link" onClick={() => startTour(step.ticket)}>
                 {step.title}
               </button>
             </li>
           ))}
         </ol>
         <p className="muted small">
-          Recorded runs, instant and free. <button className="link small" onClick={() => open((inbox[0] ?? tickets[0])?.id)}>
-            Open the inbox ({inbox.length} {inbox.length === 1 ? "email" : "emails"})</button>
+          {inbox.length} {inbox.length === 1 ? "email" : "emails"} waiting, all with recorded runs: instant and free.
         </p>
         {message && <p className="error">{message}</p>}
       </div>
     );
   }
 
-  const tourIndex = tour.findIndex((s) => s.ticket === selected.id);
+  const tourIndex = touring ? tour.findIndex((s) => s.ticket === selected.id) : -1;
 
   return (
     <div className="layout">
@@ -390,7 +408,10 @@ export default function App() {
                   <strong>
                     Tour · step {tourIndex + 1} of {tour.length}: {tour[tourIndex].title}.
                   </strong>{" "}
-                  {tour[tourIndex].text}
+                  {tour[tourIndex].text}{" "}
+                  <button className="link small" onClick={() => setTouring(false)}>
+                    End tour
+                  </button>
                 </p>
               </div>
             )}

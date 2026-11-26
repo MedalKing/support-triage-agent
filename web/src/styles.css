@@ -94,3 +94,6 @@ button.archive-link:hover { background: var(--bg); }
 .done .row { margin-top: 8px; flex-wrap: wrap; }
 .hint { align-self: center; }
 @media (max-width: 720px) { aside { position: static; height: auto; } .list { max-height: 50vh; } }
+.row.start { flex-wrap: wrap; align-items: center; gap: 12px; }
+button.secondary.big { margin-top: 0; font-size: 17px; padding: 11px 19px; border-radius: 8px; }
+.tourbar .link { margin: 0; }
