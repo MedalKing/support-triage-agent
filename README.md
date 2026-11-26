@@ -40,8 +40,8 @@ flowchart LR
 - **Read-only, customer-scoped MCP tools (`support_agent/erp_server.py`):** No write tools exist for the model. Another customer's order looks identical to a missing one.
 - **PII redaction (`support_agent/redact.py`):** Emails, phone numbers, IBANs, and Finnish identity codes are replaced with placeholders (`[EMAIL_1]`, etc.) in both incoming emails and tool outputs. Replies containing any placeholder are rejected back to the model.
 - **Policy in code, not prompts (`support_agent/proposal.py`):** Enforced on both proposal submission and approval — blocks duplicate credits on the same invoice without a manager, credits above 25% of the invoice, out-of-stock reships, post-pickup address changes, redirects with carriers that don't offer them, and cross-customer actions.
-- **Grounded structured output:** Proposals require at least one successful data lookup and non-empty evidence. Date math (`working_days_late`) is computed in code. Runbooks are retrieved with BM25 (`support_agent/retrieval.py`).
-- **Haiku-first escalation (`support_agent/escalation.py`):** Default `auto` mode runs Claude Haiku 5.5 first and escalates to Claude Opus 5.5 on checkable signals: no usable proposal, a policy violation, low/medium confidence, no fitting category, empty or contradictory actions, or corrections that point at a weak investigation (proposing before any lookup, fields on the wrong action, repeated schema errors). A single schema slip the model fixes itself doesn't count: in 24 sampled Haiku runs it happened 7 times and every one of those runs passed.
+- **Grounded structured output:** Proposals require at least one successful data lookup and evidence items that aren't filler, and are sent back if tool-call markup leaks into any text field. Date math (`working_days_late`) is computed in code. Runbooks are retrieved with BM25 (`support_agent/retrieval.py`).
+- **Haiku-first escalation (`support_agent/escalation.py`):** Default `auto` mode runs Claude Haiku 5.5 first and escalates to Claude Opus 5.5 on checkable signals: no usable proposal, a policy violation, low/medium confidence, no fitting category, empty or contradictory actions, or corrections that point at a weak investigation (proposing before any lookup, fields on the wrong action, repeated schema errors). A single schema slip the model fixes itself doesn't count: in a 24-run Haiku sample, 5 runs had one and all 5 passed.
 - **Safe human approval (`support_agent/api.py`):** Reviewers must explicitly tick impactful actions or decline with a reason. Approvals are bound to a specific proposal ID, validated atomically, and idempotent.
 - **Provider abstraction (`support_agent/providers.py`):** Runs on Claude (Messages API) or local models via Ollama.
 
@@ -49,14 +49,14 @@ flowchart LR
 
 Nine synthetic tickets scored deterministically (no LLM judge): category, required lookups, allowed/forbidden actions, exact credit amounts, stated working days late, policy enforcement, and zero PII leakage. This is a smoke test, not a benchmark.
 
-| Run (2026-11-26) | Passed | Escalated to Opus | Trace |
+| Run (2026-11-26, final checks) | Passed | Escalated to Opus | Trace |
 | --- | --- | --- | --- |
-| `auto` (Haiku 5.5 → Opus 5.5), run 1 | 9/9 | 3 (contradictory actions, no actions, medium confidence) | [1100](evals/results/2026-11-26-1100-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
-| `auto` (Haiku 5.5 → Opus 5.5), run 2 | 9/9 | 2 (medium confidence, contradictory actions) | [1103](evals/results/2026-11-26-1103-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
-| Claude Haiku 5.5 only | 9/9 | – | [1106](evals/results/2026-11-26-1106-claude_claude-haiku-5-5.json) |
-| Claude Opus 5.5 only (medium effort) | 9/9 | – | [1109](evals/results/2026-11-26-1109-claude_claude-opus-5-5.json) |
+| `auto` (Haiku 5.5 → Opus 5.5), run 1 | 9/9 | 1 (`T-1001`: contradictory actions) | [1231](evals/results/2026-11-26-1231-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
+| `auto` (Haiku 5.5 → Opus 5.5), run 2 | 9/9 | 1 (`T-1001`: no usable proposal) | [1234](evals/results/2026-11-26-1234-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
+| Claude Haiku 5.5 only | 7/9 | – | [1236](evals/results/2026-11-26-1236-claude_claude-haiku-5-5.json) |
+| Claude Opus 5.5 only (medium effort) | 8/9 | – | [1239](evals/results/2026-11-26-1239-claude_claude-opus-5-5.json) |
 
-Haiku alone is good on this set but not reliable: across 65 Haiku-only runs on 2026-11-25 and 26 (the eval runs plus two [24-run samples](evals/results/2026-11-26-haiku-sample-after-minitems.json)) it failed twice, once giving no usable proposal (escalates) and once proposing an unrequested credit (the tour's escalation example; when it comes without a contradicting no-action, only human review and the eval catch it). The stronger model isn't automatically the safer one either: on `T-1009`, Opus asked a carrier that doesn't do redirects for one in 3 of 3 trial runs, against the runbook, while Haiku followed it 6 of 6 times. That rule is now enforced in code. Local Qwen3 8B via Ollama scored 4/8 on an earlier suite, with code blocking its out-of-policy reship.
+Each model fails on its own, and each failure is one that code catches. Haiku alone proposed a credit with no amount on `T-1001` (breaks policy) and an unrequested 60 € credit next to a no-action on `T-1006` (contradictory); in `auto` both escalate to Opus. Opus alone asked ArcticPost to redirect goods on `T-1009`, which the runbook says ArcticPost doesn't do; the policy check blocks it, and in `auto` Haiku handles that ticket correctly. A [27-run Haiku sample](evals/results/2026-11-26-haiku-sample-final.json) passed 26: the miss was `T-1001` with three proposals refused in a row, which escalates. Local Qwen3 8B via Ollama scored 4/8 on an earlier suite, with code blocking its out-of-policy reship.
 
 Offline CI runs scripted unit tests, the web build, and verifies that every recorded tour run passes its eval case. Manual live evals authenticate via GitHub OIDC (no stored API key). For iteration notes, failure post-mortems, and OIDC CI details, see [docs/notes.md](docs/notes.md).
 

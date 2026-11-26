@@ -68,3 +68,14 @@ def test_coming_back_to_a_recorded_ticket_keeps_what_was_approved():
     r = client.post("/api/tickets/T-1003/approve", json={
         "proposal_id": again["proposal_id"], "action_indexes": [0], "approved_by": "visitor"})
     assert r.status_code == 409  # applied once only
+
+
+def test_an_escalation_counts_as_changed_only_when_real_actions_differ():
+    from support_agent.api import real_actions, recorded_escalations
+    credit = {"type": "issue_credit", "order_id": "SO-5003", "amount_eur": 60, "new_address": None}
+    nothing = {"type": "no_action", "order_id": "SO-5060", "amount_eur": None, "new_address": None}
+    assert real_actions({"actions": [credit]}) == real_actions({"actions": [{**credit, "amount_eur": 60.0}]})
+    assert real_actions(None) == real_actions({"actions": [nothing]}) == []
+    assert real_actions({"actions": [nothing, credit]}) != real_actions({"actions": [nothing]})
+    # The tour's escalation step needs a recording where the stronger model really changed something.
+    assert any(e["changed"] for e in recorded_escalations().values())

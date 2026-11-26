@@ -15,6 +15,7 @@ from support_agent.proposal import Proposal, check_policy, drop_stray_fields, re
 from support_agent.redact import Redactor
 from scripted import ScriptedProvider
 from test_agent import proposal
+from test_agent import run as run_script
 
 TICKETS = {t["id"]: t for t in load_tickets()}
 
@@ -187,6 +188,48 @@ def test_amount_or_address_on_the_wrong_action_is_dropped_before_approval():
 def test_blank_evidence_is_refused():
     with pytest.raises(ValueError):
         Proposal.model_validate(proposal(evidence=["   "]))
+
+
+# Recorded from Haiku 5.5 on T-1008: the rest of the tool call landed in the first text field,
+# and the schema's one required evidence item was filled with "x".
+LEAKED = ('Overcharged 60.00 EUR.</likely_cause> <parameter name="evidence">["INV-7003 total 470.00"]')
+
+
+@pytest.mark.parametrize("overrides", [
+    {"likely_cause": LEAKED},
+    {"customer_reply": "We will review a credit.</customer_reply>\n<parameter name=\"confidence\">high"},
+    {"evidence": ["x"]},
+])
+def test_leaked_tool_markup_and_filler_evidence_are_refused(overrides):
+    with pytest.raises(ValueError):
+        Proposal.model_validate(proposal(**overrides))
+
+
+@pytest.mark.parametrize("text", [
+    "Delay < 5 working days, so no credit; > 10 needs a manager.",
+    "delay <threshold -> no credit",
+    "a <5 days> window",
+])
+def test_ordinary_angle_brackets_are_fine(text):
+    Proposal.model_validate(proposal(likely_cause=text))
+
+
+@pytest.mark.parametrize("field, value", [("new_address", "Satamatie 2, Kemi</new_address>"),
+                                          ("order_id", 'SO-5001</order_id> <parameter name="reason">')])
+def test_markup_in_an_action_field_is_refused(field, value):
+    act = {"type": "contact_carrier", "order_id": "SO-5001", "reason": "Ask for a redirect",
+           "amount_eur": None, "new_address": "Satamatie 2, Kemi", field: value}
+    with pytest.raises(ValueError):
+        Proposal.model_validate(proposal(actions=[act]))
+
+
+def test_a_leaked_proposal_goes_back_to_the_model():
+    result, _ = run_script("T-1001", [
+        [("get_order", {"order_id": "SO-5001"})],
+        [("submit_proposal", proposal(likely_cause=LEAKED, evidence=["x"]))],
+        [("submit_proposal", proposal())],
+    ])
+    assert result.proposal is not None and "invalid_proposal" in [s.name for s in result.trace if s.kind == "note"]
 
 
 def test_empty_lookup_result_is_not_data():

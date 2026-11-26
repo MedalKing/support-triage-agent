@@ -11,7 +11,7 @@ import re
 from collections import defaultdict
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 Category = Literal[
     "carrier_delay", "partial_shipment_stockout", "pricing_error", "transport_damage",
@@ -36,6 +36,12 @@ MAX_AGENT_CREDIT_SHARE = 0.25  # larger credits are out of scope for the agent
 REDIRECT_CARRIERS = {"NordFreight"}
 
 
+# Tags such as </likely_cause> or <parameter name="evidence">: a name right after "<", then only
+# name="value" attributes. "x < 5", "delay <threshold -> no credit" and "<5 days>" don't match.
+MARKUP = re.compile(r'</?[A-Za-z_][\w:-]*(?:\s+[\w:-]+="[^"]*")*\s*/?>')
+MIN_EVIDENCE_CHARS = 8  # "x" is filler, not evidence
+
+
 class Action(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: ActionType
@@ -49,17 +55,32 @@ class Proposal(BaseModel):
     model_config = ConfigDict(extra="forbid")
     category: Category
     likely_cause: str
-    evidence: list[str] = Field(min_length=1)
+    evidence: list[str]
     actions: list[Action]
     customer_reply: str
     confidence: Literal["low", "medium", "high"]
 
-    @field_validator("evidence")
-    @classmethod
-    def _evidence_not_blank(cls, value: list[str]) -> list[str]:
-        if any(not item.strip() for item in value):
-            raise ValueError("evidence items must not be blank")
-        return value
+    @model_validator(mode="after")
+    def _well_formed(self) -> "Proposal":
+        # Haiku sometimes writes the rest of its tool call into the first text field
+        # ("...</likely_cause> <parameter name=\"evidence\">[...]"), so the real fields end up
+        # empty or filled with filler. Each field must hold only its own text.
+        fields = {"likely_cause": self.likely_cause, "customer_reply": self.customer_reply,
+                  **{f"evidence[{i}]": e for i, e in enumerate(self.evidence)},
+                  **{f"actions[{i}].{name}": value for i, a in enumerate(self.actions)
+                     for name, value in (("reason", a.reason), ("order_id", a.order_id),
+                                         ("new_address", a.new_address or ""))}}
+        leaked = [name for name, text in fields.items() if MARKUP.search(text)]
+        if leaked:
+            raise ValueError(f"tool-call markup inside {', '.join(leaked)}; put each value in its own field, "
+                             "as plain text")
+        # Checked after the markup, so that a model whose evidence leaked into another field is told where it went.
+        if not self.evidence:
+            raise ValueError("evidence is empty; list the facts from your tool results, with their ids, in the "
+                             "evidence field itself")
+        if any(len(item.strip()) < MIN_EVIDENCE_CHARS for item in self.evidence):
+            raise ValueError("each evidence item must be a fact from a tool result, with its id")
+        return self
 
 
 def _nullable(kind: str) -> dict[str, Any]:
@@ -80,7 +101,7 @@ SUBMIT_PROPOSAL_TOOL = {
         "properties": {
             "category": {"type": "string", "enum": list(Category.__args__)},
             "likely_cause": {"type": "string", "description": "One or two sentences."},
-            "evidence": {"type": "array", "items": {"type": "string"}, "minItems": 1,
+            "evidence": {"type": "array", "items": {"type": "string"},
                          "description": "At least one fact from tool results that supports the cause, with ids."},
             "actions": {
                 "type": "array",
