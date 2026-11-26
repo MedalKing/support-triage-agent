@@ -99,3 +99,5 @@ button.secondary.big { margin-top: 0; font-size: 17px; padding: 11px 19px; borde
 .tourbar .link { margin: 0; }
 button.link.reset { align-self: flex-start; margin: 8px 10px 0; color: var(--muted); }
 button.link.reset:hover { color: var(--accent); }
+button.link:disabled { opacity: .5; cursor: default; }
+button.link:focus-visible, button.ticket:focus-visible, button.archive-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

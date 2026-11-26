@@ -212,9 +212,10 @@ def recorded_triage(ticket_id: str, s: Session = Depends(session)) -> dict[str, 
     if ticket is None or not path.exists():
         raise HTTPException(404, "no recorded run for this ticket")
     result = s.results.get(ticket_id)
-    if result is not None and result.recorded and result.proposal is not None:
-        # Coming back to a ticket keeps what was approved on it; only the policy check is
-        # redone, since approvals on other tickets may have changed the answer.
+    if result is not None and result.proposal is not None:
+        # Coming back to a ticket keeps the proposal the reviewer worked on, recorded or live,
+        # and what was decided on it; only the policy check is redone, since approvals on
+        # other tickets may have changed the answer.
         result.policy_violations = check_policy(result.proposal, ticket["customer_id"], s.erp, result.proposal_id)
         return result.to_dict()
     result = load_recorded(ticket, json.loads(path.read_text(encoding="utf-8")), s.erp)

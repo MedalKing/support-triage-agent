@@ -264,3 +264,13 @@ def test_the_inbox_lists_newest_first_with_the_company_name(client):
     rows = client.get("/api/tickets").json()
     assert [r["received"] for r in rows] == sorted((r["received"] for r in rows), reverse=True)
     assert {r["customer_name"] for r in rows if r["customer_id"] == "C-201"} == {"Pohjola Bakery Ltd"}
+
+
+def test_reopening_an_email_keeps_its_live_run(client, monkeypatch):
+    # Run live, approve (archives it), open it again: the page asks for the recorded run, but the
+    # live proposal and its approval must come back, not a fresh recording blocked by its own credit.
+    body = triage(client, monkeypatch, CREDIT)
+    approve(client, body["proposal_id"], [0])
+    again = client.get("/api/tickets/T-1003/recorded").json()
+    assert again["proposal_id"] == body["proposal_id"] and again["applied"] == [0]
+    assert again["policy_violations"] == [] and archived(client) == {"T-1003"}

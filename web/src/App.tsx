@@ -23,7 +23,8 @@ const SCENARIOS: Record<string, string> = {
   "T-1009": "redirect the carrier can't do",
 };
 
-type TourStep = { ticket: string; title: string; text: string };
+// `also`: other emails that belong to the same step, such as the second email of step 2.
+type TourStep = { ticket: string; title: string; text: string; also?: string[] };
 
 const TOUR: TourStep[] = [
   {
@@ -33,6 +34,7 @@ const TOUR: TourStep[] = [
   },
   {
     ticket: "T-1003",
+    also: ["T-1008"],
     title: "Policy runs in code, not in the prompt",
     text: "Tick the 60 € credit and press Approve (nothing real happens; the order system is simulated). Then open T-1008, a second email about the same invoice: code blocks the second credit and asks for a manager, whatever the model says.",
   },
@@ -139,9 +141,9 @@ export default function App() {
     const ticketId = ticket.id;
     try {
       const r = live ? await triage(ticketId, provider, accessCode) : await recorded(ticketId);
+      if (live) refreshTickets(); // a new proposal puts the email back in the inbox, even if the reviewer moved on
       if (current.current !== ticketId) return;
       setResult(r);
-      if (live) refreshTickets(); // a new proposal puts the email back in the inbox
       // Pre-tick only actions that change nothing for the customer and aren't decided yet.
       setChecked(
         r.proposal?.actions.flatMap((a, i) =>
@@ -161,12 +163,12 @@ export default function App() {
     setBusy(true);
     try {
       const r = await approve(ticketId, result.proposal_id, checked);
-      setAudit(await auditLog());
+      // The lists change even if the reviewer has already opened another email.
+      await Promise.all([auditLog().then(setAudit), refreshTickets()]);
       if (current.current !== ticketId) return;
       setResult({ ...result, applied: [...result.applied, ...checked] });
       setChecked([]);
-      if (r.archived) refreshTickets();
-      setMessage(`Approved ${r.applied.length} action(s); see the audit log.`);
+      setMessage(`Approved ${r.applied.length} action(s). Every decision is in the audit log, under Archive.`);
     } catch (e) {
       if (current.current === ticketId) setMessage(String(e));
     } finally {
@@ -180,7 +182,7 @@ export default function App() {
     setBusy(true);
     try {
       const r = await decline(ticketId, result.proposal_id, checked, reason.trim());
-      setAudit(await auditLog());
+      await Promise.all([auditLog().then(setAudit), refreshTickets()]);
       if (current.current !== ticketId) return;
       const declined = { ...result.declined };
       for (const i of checked) declined[String(i)] = reason.trim();
@@ -188,8 +190,7 @@ export default function App() {
       setChecked([]);
       setDeclining(false);
       setReason("");
-      if (r.archived) refreshTickets();
-      setMessage(`Declined ${r.declined.length} action(s); the reason is in the audit log.`);
+      setMessage(`Declined ${r.declined.length} action(s). The reason is in the audit log, under Archive.`);
     } catch (e) {
       if (current.current === ticketId) setMessage(String(e));
     } finally {
@@ -209,13 +210,17 @@ export default function App() {
   }
 
   async function setDone(done: boolean) {
-    if (!selected) return;
+    if (!selected || busy) return;
+    const ticketId = selected.id;
+    setBusy(true);
     try {
-      await (done ? markDone(selected.id) : moveToInbox(selected.id));
+      await (done ? markDone(ticketId) : moveToInbox(ticketId));
       await refreshTickets();
-      setMessage(null);
+      if (current.current === ticketId) setMessage(null);
     } catch (e) {
-      setMessage(String(e));
+      if (current.current === ticketId) setMessage(String(e));
+    } finally {
+      if (current.current === ticketId) setBusy(false);
     }
   }
 
@@ -247,6 +252,7 @@ export default function App() {
   const inbox = tickets.filter((t) => !t.archived);
   const archive = tickets.filter((t) => t.archived);
   const changed = audit.length > 0 || archive.length > 0;
+  const ready = tickets.length > 0 && config !== null; // opening an email needs both
   const q = query.trim().toLowerCase();
   const shown = (view === "inbox" ? inbox : archive).filter(
     (t) => !q || [t.id, t.subject, t.body, t.customer_name, SCENARIOS[t.id] ?? ""].some((f) => f.toLowerCase().includes(q)),
@@ -294,17 +300,17 @@ export default function App() {
           change anything itself: you approve each action, and rules in code block what's out of policy.
         </p>
         <div className="row start">
-          <button className="primary" onClick={() => startTour(tour[0].ticket)} disabled={!tickets.length}>
+          <button className="primary" onClick={() => startTour(tour[0].ticket)} disabled={!ready}>
             Start the 3-minute tour →
           </button>
-          <button className="secondary big" onClick={skipTour} disabled={!tickets.length}>
+          <button className="secondary big" onClick={skipTour} disabled={!ready}>
             Skip the tour, open the inbox
           </button>
         </div>
         <ol className="steps">
           {tour.map((step) => (
             <li key={step.ticket}>
-              <button className="link" onClick={() => startTour(step.ticket)}>
+              <button className="link" onClick={() => startTour(step.ticket)} disabled={!ready}>
                 {step.title}
               </button>
             </li>
@@ -324,7 +330,7 @@ export default function App() {
     );
   }
 
-  const tourIndex = touring ? tour.findIndex((s) => s.ticket === selected.id) : -1;
+  const tourIndex = touring ? tour.findIndex((s) => s.ticket === selected.id || s.also?.includes(selected.id)) : -1;
 
   return (
     <div className="layout">
