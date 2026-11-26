@@ -7,7 +7,9 @@ An AI agent that triages customer support emails for a simulated packaging compa
 **Live demo:** https://support-triage-demo.calmdesert-2585d0f9.swedencentral.azurecontainerapps.io/  
 Click **Start tour** for three steps through four recorded runs (instant, no login), or open the inbox directly. Live runs require the access code from my job application. Cold starts take a few seconds.
 
-![Tour: prompt injection, approving a credit, policy block on a second credit, and model escalation](docs/images/tour.gif)
+![Tour: prompt injection, approving a credit, policy block on a second credit, model escalation, and the archive](docs/images/tour.webp)
+
+[Watch the tour as a sharper video (MP4, 35 s)](docs/images/tour.mp4)
 
 ## 3-minute tour
 
@@ -101,7 +103,7 @@ support_agent/   agent loop, providers, escalation, MCP server, mock ERP, policy
 web/             React + TypeScript review UI
 evals/           eval cases, runner, recorded-run generator, saved results
 tests/           offline tests with a scripted model
-docs/            screenshots, tour GIF, and engineering notes
+docs/            screenshots, tour animation and video, and engineering notes
 ```
 
 ## Limits
