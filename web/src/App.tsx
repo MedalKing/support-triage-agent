@@ -300,7 +300,10 @@ export default function App() {
           {tour.map((step) => (
             <li key={step.ticket}>
               <button className="link" onClick={() => startTour(step.ticket)} disabled={!ready}>
-                {step.title} <span className="muted small">({step.ticket})</span>
+                {step.title}{" "}
+                <span className="muted small">
+                  ({step.also?.length ? `${step.ticket} → ${step.also[0]}` : step.ticket})
+                </span>
               </button>
             </li>
           ))}
@@ -341,7 +344,7 @@ export default function App() {
           </svg>
           <input
             type="search"
-            placeholder="Search"
+            placeholder="Search tickets"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label={view === "inbox" ? "Search inbox" : "Search archive"}
@@ -396,7 +399,7 @@ export default function App() {
                     {e.decision === "declined" ? "✕" : "✓"}
                   </span>{" "}
                   <code className="action-type">{e.type}</code> · {e.order_id}
-                  {e.amount_eur != null && <> · {e.amount_eur.toFixed(2)} €</>} <span className="muted">({e.ticket_id})</span>
+                  {e.amount_eur != null && <> · {e.amount_eur.toFixed(2)}&nbsp;€</>} <span className="muted">({e.ticket_id})</span>
                   {e.decline_reason && <div className="muted">“{e.decline_reason}”</div>}
                 </div>
               ))}
@@ -546,14 +549,23 @@ export default function App() {
                   />
                 )}
                 <code className="action-type">{a.type}</code> · {a.order_id}
-                {a.amount_eur != null && <> · {a.amount_eur.toFixed(2)} €</>}
+                {a.amount_eur != null && <> · {a.amount_eur.toFixed(2)}&nbsp;€</>}
                 {a.new_address && <> · {a.new_address}</>}
                 {a.needs_approval && !blocked && !result.applied.includes(i) && !(String(i) in result.declined) && (
-                  <span className="tag warn">approval required</span>
+                  <>
+                    {" "}
+                    <span className="tag warn">approval required</span>
+                  </>
                 )}
-                {result.applied.includes(i) && <span className="tag ok">applied</span>}
+                {result.applied.includes(i) && (
+                  <>
+                    {" "}
+                    <span className="tag ok">applied</span>
+                  </>
+                )}
                 {String(i) in result.declined && (
                   <>
+                    {" "}
                     <span className="tag declined">declined</span>
                     <div className="muted">“{result.declined[String(i)]}”</div>
                   </>
