@@ -1,4 +1,5 @@
-export type Ticket = { id: string; customer_id: string; subject: string; body: string };
+// archived: the reviewer is done with it. Everything else is the inbox.
+export type Ticket = { id: string; customer_id: string; subject: string; body: string; archived: boolean };
 export type Action = {
   type: string;
   order_id: string;
@@ -65,14 +66,17 @@ export const triage = (id: string, provider: string, accessCode: string) =>
     accessCode ? { "X-Access-Code": accessCode } : {});
 export const recorded = (id: string) => call<TriageResult>(`/api/tickets/${id}/recorded`);
 export const approve = (id: string, proposal_id: string, action_indexes: number[]) =>
-  call<{ applied: AuditEntry[] }>(`/api/tickets/${id}/approve`, {
+  call<{ applied: AuditEntry[]; archived: boolean }>(`/api/tickets/${id}/approve`, {
     method: "POST",
     body: JSON.stringify({ proposal_id, action_indexes, approved_by: "demo reviewer" }),
   });
 export const decline = (id: string, proposal_id: string, action_indexes: number[], reason: string) =>
-  call<{ declined: AuditEntry[] }>(`/api/tickets/${id}/decline`, {
+  call<{ declined: AuditEntry[]; archived: boolean }>(`/api/tickets/${id}/decline`, {
     method: "POST",
     body: JSON.stringify({ proposal_id, action_indexes, declined_by: "demo reviewer", reason }),
   });
+export const markDone = (id: string) => call<{ archived: boolean }>(`/api/tickets/${id}/archive`, { method: "POST" });
+export const moveToInbox = (id: string) =>
+  call<{ archived: boolean }>(`/api/tickets/${id}/unarchive`, { method: "POST" });
 export const auditLog = () => call<AuditEntry[]>("/api/audit");
 export const reset = () => call<{ status: string }>("/api/reset", { method: "POST" });

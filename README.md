@@ -15,7 +15,7 @@ Click **Start the 3-minute tour** to replay three recorded runs (instant, no log
 2. **Policy enforced in code (`T-1003` → `T-1008`):** Approve the 60 € credit on `T-1003`, then open `T-1008` (a second email about the same invoice). Code blocks the second credit as requiring manager approval, holds the draft reply, and refuses the IBAN supplied in the email. ([Screenshot](docs/images/policy-block.png))
 3. **Automatic escalation (`T-1006`):** Asked about an order number that doesn't exist, Claude Haiku proposed "no action" and, alongside it, an unrequested 60 € credit on a different order. Code flags the contradiction, and Claude Opus redoes the ticket from scratch: it only asks the customer to confirm the order number. Both attempts are visible in the trace.
 
-Each visitor gets an isolated in-memory session; **Start over** resets it.
+Emails wait in an **inbox** until every action on them is approved or declined (or, with nothing to approve, marked done); then they move to the **archive**. The goal is an empty inbox. Each visitor gets an isolated in-memory session; **Start over** resets it.
 
 ## Architecture
 

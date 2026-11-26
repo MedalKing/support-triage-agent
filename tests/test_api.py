@@ -207,3 +207,54 @@ def test_a_declined_credit_does_not_count_as_an_earlier_credit(client, monkeypat
     use_script(monkeypatch, script_for(CREDIT))
     second = client.post("/api/tickets/T-1008/triage").json()
     assert second["policy_violations"] == []  # nothing was credited, so no duplicate
+
+
+# --- inbox and archive ---
+
+NO_ACTION = {"type": "no_action", "order_id": "SO-5003", "reason": "nothing to do", "amount_eur": None,
+             "new_address": None}
+CARRIER = {"type": "contact_carrier", "order_id": "SO-5003", "reason": "ask for news", "amount_eur": None,
+           "new_address": None}
+
+
+def archived(client):
+    return {t["id"] for t in client.get("/api/tickets").json() if t["archived"]}
+
+
+def test_an_email_leaves_the_inbox_once_every_action_is_decided(client, monkeypatch):
+    body = triage(client, monkeypatch, CREDIT, CARRIER)
+    assert archived(client) == set()
+    assert approve(client, body["proposal_id"], [1]).json()["archived"] is False  # the credit is still open
+    assert decline(client, body["proposal_id"], [0]).json()["archived"] is True
+    assert archived(client) == {"T-1003"}
+
+
+def test_an_email_with_nothing_to_decide_is_marked_done_by_hand(client, monkeypatch):
+    assert client.post("/api/tickets/T-1003/archive").status_code == 409  # not triaged yet
+    triage(client, monkeypatch, NO_ACTION)
+    assert client.post("/api/tickets/T-1003/archive").status_code == 200
+    assert archived(client) == {"T-1003"}
+
+
+def test_open_actions_keep_an_email_in_the_inbox(client, monkeypatch):
+    triage(client, monkeypatch, CREDIT)
+    assert client.post("/api/tickets/T-1003/archive").status_code == 409
+    assert archived(client) == set()
+
+
+def test_an_email_can_go_back_to_the_inbox(client, monkeypatch):
+    body = triage(client, monkeypatch, CREDIT)
+    approve(client, body["proposal_id"], [0])
+    assert client.post("/api/tickets/T-1003/unarchive").status_code == 200
+    assert archived(client) == set()
+
+
+def test_a_new_live_run_brings_an_email_back_and_start_over_empties_the_archive(client, monkeypatch):
+    triage(client, monkeypatch, NO_ACTION)
+    client.post("/api/tickets/T-1003/archive")
+    body = triage(client, monkeypatch, CREDIT)  # a new proposal to decide on
+    assert archived(client) == set()
+    approve(client, body["proposal_id"], [0])
+    assert archived(client) == {"T-1003"}
+    client.post("/api/reset")
+    assert archived(client) == set()

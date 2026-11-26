@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  approve, AuditEntry, auditLog, Config, decline, getConfig, listTickets, recorded, reset, triage, Ticket, TraceStep, TriageResult,
+  approve, AuditEntry, auditLog, Config, decline, getConfig, listTickets, markDone, moveToInbox, recorded, reset, triage, Ticket,
+  TraceStep, TriageResult,
 } from "./api";
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -88,6 +89,7 @@ export default function App() {
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
+  const [view, setView] = useState<"inbox" | "archive">("inbox");
   // The ticket on screen. A triage answer for a ticket the reviewer has left is dropped.
   const current = useRef<string | null>(null);
 
@@ -101,6 +103,8 @@ export default function App() {
       .catch((e) => setMessage(String(e)));
     auditLog().then(setAudit).catch(() => {});
   }, []);
+
+  const refreshTickets = () => listTickets().then(setTickets).catch((e) => setMessage(String(e)));
 
   function saveCode(code: string) {
     setAccessCode(code);
@@ -134,6 +138,7 @@ export default function App() {
       const r = live ? await triage(ticketId, provider, accessCode) : await recorded(ticketId);
       if (current.current !== ticketId) return;
       setResult(r);
+      if (live) refreshTickets(); // a new proposal puts the email back in the inbox
       // Pre-tick only actions that change nothing for the customer and aren't decided yet.
       setChecked(
         r.proposal?.actions.flatMap((a, i) =>
@@ -157,6 +162,7 @@ export default function App() {
       if (current.current !== ticketId) return;
       setResult({ ...result, applied: [...result.applied, ...checked] });
       setChecked([]);
+      if (r.archived) refreshTickets();
       setMessage(`Approved ${r.applied.length} action(s); see the audit log.`);
     } catch (e) {
       if (current.current === ticketId) setMessage(String(e));
@@ -179,11 +185,23 @@ export default function App() {
       setChecked([]);
       setDeclining(false);
       setReason("");
+      if (r.archived) refreshTickets();
       setMessage(`Declined ${r.declined.length} action(s); the reason is in the audit log.`);
     } catch (e) {
       if (current.current === ticketId) setMessage(String(e));
     } finally {
       if (current.current === ticketId) setBusy(false);
+    }
+  }
+
+  async function setDone(done: boolean) {
+    if (!selected) return;
+    try {
+      await (done ? markDone(selected.id) : moveToInbox(selected.id));
+      await refreshTickets();
+      setMessage(null);
+    } catch (e) {
+      setMessage(String(e));
     }
   }
 
@@ -200,12 +218,30 @@ export default function App() {
     try {
       await reset();
       setAudit([]);
+      await refreshTickets();
+      setView("inbox");
       goHome();
     } catch (e) {
       setMessage(`Could not start over: ${e}`);
     }
   }
 
+  const inbox = tickets.filter((t) => !t.archived);
+  const archive = tickets.filter((t) => t.archived);
+  const isArchived = !!selected && archive.some((t) => t.id === selected.id);
+  // The next email still waiting, after this one in the list, wrapping around.
+  const at = tickets.findIndex((t) => t.id === selected?.id);
+  const nextInInbox = [...tickets.slice(at + 1), ...tickets.slice(0, Math.max(at, 0))].find((t) => !t.archived);
+  const undecided = result?.proposal?.actions.filter(
+    (a, i) => a.type !== "no_action" && !result.applied.includes(i) && !(String(i) in result.declined),
+  ).length ?? 0;
+  // What happened to an archived email, from the audit log.
+  const outcome = (id: string) => {
+    const mine = audit.filter((e) => e.ticket_id === id);
+    const n = (d: string) => mine.filter((e) => e.decision === d).length;
+    const parts = [n("approved") && `${n("approved")} approved`, n("declined") && `${n("declined")} declined`].filter(Boolean);
+    return parts.length ? parts.join(" · ") : "nothing to approve";
+  };
   const blocked = (result?.policy_violations.length ?? 0) > 0;
   const actionable = !!result?.proposal?.actions.some((a) => a.type !== "no_action");
   const escalation = escalationStep(config);
@@ -246,8 +282,8 @@ export default function App() {
           ))}
         </ol>
         <p className="muted small">
-          Recorded runs, instant and free. <button className="link small" onClick={() => open(tickets[0]?.id)}>Browse all {tickets.length || 9}
-          emails</button>
+          Recorded runs, instant and free. <button className="link small" onClick={() => open((inbox[0] ?? tickets[0])?.id)}>
+            Open the inbox ({inbox.length} {inbox.length === 1 ? "email" : "emails"})</button>
         </p>
         {message && <p className="error">{message}</p>}
       </div>
@@ -264,19 +300,38 @@ export default function App() {
             Support triage agent
           </button>
         </h1>
-        {tickets.map((t) => (
+        <div className="tabs" role="tablist">
+          {(["inbox", "archive"] as const).map((v) => (
+            <button key={v} role="tab" aria-selected={view === v} className={view === v ? "tab active" : "tab"}
+              onClick={() => setView(v)}>
+              {v === "inbox" ? "Inbox" : "Archive"} <span className="count">{(v === "inbox" ? inbox : archive).length}</span>
+            </button>
+          ))}
+        </div>
+        {(view === "inbox" ? inbox : archive).map((t) => (
           <button key={t.id} className={selected.id === t.id ? "ticket active" : "ticket"} onClick={() => open(t.id)}>
             {t.subject}
             <span className="id">
-              {t.id} · {SCENARIOS[t.id]}
-              {config?.escalated[t.id] && " · escalated"}
+              {t.id} · {view === "inbox" ? SCENARIOS[t.id] : outcome(t.id)}
+              {view === "inbox" && config?.escalated[t.id] && " · escalated"}
             </span>
           </button>
         ))}
+        {view === "inbox" && inbox.length === 0 && (
+          <p className="empty">
+            <strong>Inbox zero.</strong> Every email is handled.{" "}
+            <button className="link small" onClick={() => setView("archive")}>See the archive</button>
+          </p>
+        )}
+        {view === "archive" && archive.length === 0 && (
+          <p className="empty muted small">
+            Nothing here yet. An email moves here once every action on it is approved or declined.
+          </p>
+        )}
 
-        {audit.length > 0 && (
+        {(audit.length > 0 || archive.length > 0) && (
           <section className="audit">
-            <h2>Audit log</h2>
+            {audit.length > 0 && <h2>Audit log</h2>}
             {audit.map((e, i) => (
               <div key={i} className="small entry">
                 {e.decision === "declined" ? "Declined " : "Approved "}
@@ -382,7 +437,7 @@ export default function App() {
                   <p className="muted small">
                     Nothing happens until you press Approve. Free requests, such as asking the carrier for news, are
                     ticked for you. Actions that cost money or change the order are left for you to tick, with what to
-                    check.
+                    check. Once every action is approved or declined, the email moves to the archive.
                   </p>
                 )}
                 {blocked && (
@@ -422,7 +477,24 @@ export default function App() {
                     {a.approval_reason && <div className="why">What to check: {a.approval_reason}</div>}
                   </label>
                 ))}
-                {actionable && !declining && (
+                {isArchived ? (
+                  <div className="done">
+                    <strong>Done.</strong>{" "}
+                    {nextInInbox ? "This email is in the archive." : "Inbox zero: every email is handled."}
+                    <div className="row">
+                      {nextInInbox && !next && (
+                        <button onClick={() => open(nextInInbox.id)}>Next in inbox: {nextInInbox.id} →</button>
+                      )}
+                      <button className="secondary" onClick={() => setDone(false)}>Move back to inbox</button>
+                    </div>
+                  </div>
+                ) : undecided === 0 ? (
+                  <div className="row">
+                    <button onClick={() => setDone(true)} disabled={busy}>Mark done</button>
+                    <span className="muted small hint">Nothing left to approve. Marking it done clears it from the inbox.</span>
+                  </div>
+                ) : null}
+                {actionable && !declining && undecided > 0 && (
                   <div className="row">
                     <button onClick={submit} disabled={blocked || busy || checked.length === 0}>
                       Approve selected
