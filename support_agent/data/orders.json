@@ -11,7 +11,8 @@
     "SO-5003": {"customer_id": "C-203", "order_date": "2026-10-14", "status": "invoiced", "lines": [{"sku": "BOX-HD-500", "qty": 200, "unit_price_eur": 2.35}], "quoted_unit_price_eur": 2.05, "promised_date": "2026-11-05", "carrier": "ArcticPost", "shipment_id": "SH-9003", "price_list": "PL-2026-Q3", "delivery_address": "Tunturitie 3, Rovaniemi", "invoice_id": "INV-7003", "invoice_total_eur": 470.0},
     "SO-5004": {"customer_id": "C-204", "order_date": "2026-10-23", "status": "delivered", "lines": [{"sku": "BOX-FOOD-250", "qty": 1000, "unit_price_eur": 0.65}], "promised_date": "2026-11-08", "carrier": "BalticLine", "shipment_id": "SH-9004", "price_list": "PL-2026-Q4", "delivery_address": "Hamngatan 8, Stockholm", "invoice_total_eur": 650.0},
     "SO-5005": {"customer_id": "C-201", "order_date": "2026-11-12", "status": "shipped", "lines": [{"sku": "BOX-A4-200", "qty": 300, "unit_price_eur": 0.42}], "promised_date": "2026-11-24", "carrier": "NordFreight", "shipment_id": "SH-9005", "price_list": "PL-2026-Q4", "delivery_address": "Teollisuuskatu 5, Oulu"},
-    "SO-5006": {"customer_id": "C-203", "order_date": "2026-10-06", "status": "delivered", "lines": [{"sku": "BOX-HD-500", "qty": 50, "unit_price_eur": 2.05}], "promised_date": "2026-10-20", "carrier": "ArcticPost", "shipment_id": "SH-9006", "price_list": "PL-2026-Q4", "delivery_address": "Tunturitie 3, Rovaniemi", "invoice_total_eur": 102.5}
+    "SO-5006": {"customer_id": "C-203", "order_date": "2026-10-06", "status": "delivered", "lines": [{"sku": "BOX-HD-500", "qty": 50, "unit_price_eur": 2.05}], "promised_date": "2026-10-20", "carrier": "ArcticPost", "shipment_id": "SH-9006", "price_list": "PL-2026-Q4", "delivery_address": "Tunturitie 3, Rovaniemi", "invoice_total_eur": 102.5},
+    "SO-5007": {"customer_id": "C-203", "order_date": "2026-11-16", "status": "shipped", "lines": [{"sku": "BOX-A4-200", "qty": 1000, "unit_price_eur": 0.42}], "promised_date": "2026-11-25", "carrier": "ArcticPost", "shipment_id": "SH-9007", "price_list": "PL-2026-Q4", "delivery_address": "Tunturitie 3, Rovaniemi", "invoice_total_eur": 420.0}
   },
   "shipments": {
     "SH-9001": [
@@ -38,6 +39,10 @@
     "SH-9006": [
       {"ts": "2026-10-18T09:00", "event": "picked_up", "location": "Espoo DC"},
       {"ts": "2026-10-20T13:00", "event": "delivered", "location": "Rovaniemi"}
+    ],
+    "SH-9007": [
+      {"ts": "2026-11-21T07:30", "event": "picked_up", "location": "Espoo DC"},
+      {"ts": "2026-11-22T18:10", "event": "arrived_hub", "location": "ArcticPost terminal Oulu"}
     ]
   },
   "stock": {

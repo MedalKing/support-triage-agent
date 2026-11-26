@@ -1,0 +1,95 @@
+{
+  "ticket_id": "T-1009",
+  "declined": {},
+  "provider": "claude:claude-haiku-5-5",
+  "escalation": null,
+  "proposal": {
+    "category": "address_change",
+    "likely_cause": "SO-5007 was picked up at Espoo DC on 2026-11-21 and is already at the ArcticPost terminal in Oulu, so the delivery address can no longer be changed in our system. The runbook allows in-transit redirects only with NordFreight, and this order ships with ArcticPost, so we cannot redirect it or ask the driver to change the drop-off.",
+    "evidence": [
+      "get_order SO-5007: status shipped, carrier ArcticPost, shipment SH-9007, delivery_address Tunturitie 3, Rovaniemi, promised_date 2026-11-25.",
+      "get_shipment_events SH-9007: 2026-11-21T07:30 picked_up at Espoo DC; 2026-11-22T18:10 arrived_hub at ArcticPost terminal Oulu.",
+      "Runbook address-change step 2: after pickup the address cannot be changed; redirects are allowed in transit only for NordFreight, other carriers do not allow them."
+    ],
+    "actions": [
+      {
+        "type": "no_action",
+        "order_id": "SO-5007",
+        "reason": "Address change is not possible after pickup with ArcticPost (runbook address-change, step 2). No redirect request is proposed because ArcticPost does not allow in-transit redirects. Delivery stays at Tunturitie 3, Rovaniemi, with promised date 2026-11-25.",
+        "amount_eur": null,
+        "new_address": null,
+        "needs_approval": false,
+        "approval_reason": null
+      }
+    ],
+    "customer_reply": "Hello Mikko,\n\nThank you for your message about order SO-5007. The order was picked up on 21 November and is now at the ArcticPost terminal in Oulu. Once a parcel has been picked up, we cannot change its delivery address, and ArcticPost does not allow us to redirect parcels in transit. We also cannot pass a message to the driver, so the delivery will go to Tunturitie 3, Rovaniemi. The promised delivery date is 25 November 2026.\n\nWe understand you are moving this week. If you can, please arrange for someone to receive the delivery at Tunturitie 3 or to collect it. For future orders, send us the new address before dispatch and we will update it then.\n\nKind regards,\nCustomer Support",
+    "confidence": "high"
+  },
+  "policy_violations": [],
+  "trace": [
+    {
+      "kind": "tool",
+      "name": "get_order",
+      "detail": {
+        "arguments": {
+          "order_id": "SO-5007"
+        },
+        "result": "{\"order_id\": \"SO-5007\", \"customer_id\": \"C-203\", \"order_date\": \"2026-11-16\", \"status\": \"shipped\", \"lines\": [{\"sku\": \"BOX-A4-200\", \"qty\": 1000, \"unit_price_eur\": 0.42}], \"promised_date\": \"2026-11-25\", \"carrier\": \"ArcticPost\", \"shipment_id\": \"SH-9007\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Tunturitie 3, Rovaniemi\", \"invoice_total_eur\": 420.0, \"customer\": {\"id\": \"C-203\", \"name\": \"Lapland Outdoor Gear\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_2]\", \"tier\": \"standard\"}}",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "search_runbooks",
+      "detail": {
+        "arguments": {
+          "query": "address change for order already shipped in transit"
+        },
+        "result": "[{\"runbook\": \"address-change\", \"score\": 8.57, \"text\": \"# Delivery address change\\n\\nApplies when the customer wants to change where an order is delivered.\\n\\n1. Before pickup: propose `update_delivery_address` (needs approval).\\n2. After pickup (`picked_up` event exists): the address cannot be changed in our system. Propose `contact_carrier` to request a redirect; NordFreight allows redirects while in transit, other carriers do not.\\n3. Confirm the new address with the customer in the reply.\\n\"}, {\"runbook\": \"short-delivery\", \"score\": 3.13, \"text\": \"# Short or partial delivery\\n\\nApplies when the customer received fewer units than ordered.\\n\\n1. Compare ordered quantity with `qty_shipped` on the order line and the pickup note on the shipment.\\n2. If stock was short at dispatch (`on_hand` 0), the remainder is backordered. Check `next_restock` and tell the customer the expected restock date. The dispatch date for the remainder is set only after the stock arrives, so don't promise one, or tracking, yet.\\n3. If stock is available, propose `reship_order` for the missing quantity (needs approval).\\n4. Never propose a credit for a backorder that will be shipped.\\n\"}]",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "get_shipment_events",
+      "detail": {
+        "arguments": {
+          "shipment_id": "SH-9007"
+        },
+        "result": "[{\"ts\": \"2026-11-21T07:30\", \"event\": \"picked_up\", \"location\": \"Espoo DC\"}, {\"ts\": \"2026-11-22T18:10\", \"event\": \"arrived_hub\", \"location\": \"ArcticPost terminal Oulu\"}]",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "submit_proposal",
+      "detail": {
+        "category": "address_change",
+        "likely_cause": "SO-5007 was picked up at Espoo DC on 2026-11-21 and is already at the ArcticPost terminal in Oulu, so the delivery address can no longer be changed in our system. The runbook allows in-transit redirects only with NordFreight, and this order ships with ArcticPost, so we cannot redirect it or ask the driver to change the drop-off.",
+        "evidence": [
+          "get_order SO-5007: status shipped, carrier ArcticPost, shipment SH-9007, delivery_address Tunturitie 3, Rovaniemi, promised_date 2026-11-25.",
+          "get_shipment_events SH-9007: 2026-11-21T07:30 picked_up at Espoo DC; 2026-11-22T18:10 arrived_hub at ArcticPost terminal Oulu.",
+          "Runbook address-change step 2: after pickup the address cannot be changed; redirects are allowed in transit only for NordFreight, other carriers do not allow them."
+        ],
+        "actions": [
+          {
+            "type": "no_action",
+            "order_id": "SO-5007",
+            "reason": "Address change is not possible after pickup with ArcticPost (runbook address-change, step 2). No redirect request is proposed because ArcticPost does not allow in-transit redirects. Delivery stays at Tunturitie 3, Rovaniemi, with promised date 2026-11-25.",
+            "amount_eur": null,
+            "new_address": null
+          }
+        ],
+        "customer_reply": "Hello Mikko,\n\nThank you for your message about order SO-5007. The order was picked up on 21 November and is now at the ArcticPost terminal in Oulu. Once a parcel has been picked up, we cannot change its delivery address, and ArcticPost does not allow us to redirect parcels in transit. We also cannot pass a message to the driver, so the delivery will go to Tunturitie 3, Rovaniemi. The promised delivery date is 25 November 2026.\n\nWe understand you are moving this week. If you can, please arrange for someone to receive the delivery at Tunturitie 3 or to collect it. For future orders, send us the new address before dispatch and we will update it then.\n\nKind regards,\nCustomer Support",
+        "confidence": "high"
+      }
+    }
+  ],
+  "redactions": [
+    "[EMAIL_1]",
+    "[PHONE_1]",
+    "[PHONE_2]"
+  ],
+  "error": null,
+  "as_of": "2026-11-23"
+}

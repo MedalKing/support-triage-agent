@@ -1,0 +1,511 @@
+[
+  {
+    "ticket": "T-1002",
+    "run": 0,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "partial_shipment_stockout",
+    "actions": [
+      [
+        "no_action",
+        "SO-5002",
+        null
+      ]
+    ],
+    "notes": [
+      "invalid_proposal"
+    ],
+    "reasons": [
+      "the model had to be corrected (a proposal that broke the schema)"
+    ],
+    "error": null
+  },
+  {
+    "ticket": "T-1001",
+    "run": 2,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "carrier_delay",
+    "actions": [
+      [
+        "contact_carrier",
+        "SO-5001",
+        null
+      ],
+      [
+        "expedite_shipment",
+        "SO-5001",
+        null
+      ]
+    ],
+    "notes": [
+      "invalid_proposal"
+    ],
+    "reasons": [
+      "the model had to be corrected (a proposal that broke the schema)"
+    ],
+    "error": null
+  },
+  {
+    "ticket": "T-1001",
+    "run": 0,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "carrier_delay",
+    "actions": [
+      [
+        "contact_carrier",
+        "SO-5001",
+        null
+      ],
+      [
+        "expedite_shipment",
+        "SO-5001",
+        null
+      ]
+    ],
+    "notes": [
+      "invalid_proposal"
+    ],
+    "reasons": [
+      "the model had to be corrected (a proposal that broke the schema)"
+    ],
+    "error": null
+  },
+  {
+    "ticket": "T-1001",
+    "run": 1,
+    "passed": false,
+    "failed": [
+      "proposal",
+      "category",
+      "required_actions",
+      "reply_ready",
+      "working_days",
+      "policy"
+    ],
+    "confidence": null,
+    "category": null,
+    "actions": null,
+    "notes": [
+      "invalid_proposal",
+      "invalid_proposal",
+      "invalid_proposal"
+    ],
+    "reasons": [
+      "it gave no usable proposal (the proposal was rejected 3 times)"
+    ],
+    "error": "The proposal was rejected 3 times."
+  },
+  {
+    "ticket": "T-1002",
+    "run": 1,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "partial_shipment_stockout",
+    "actions": [
+      [
+        "no_action",
+        "SO-5002",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1002",
+    "run": 2,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "partial_shipment_stockout",
+    "actions": [
+      [
+        "no_action",
+        "SO-5002",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1003",
+    "run": 0,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "pricing_error",
+    "actions": [
+      [
+        "issue_credit",
+        "SO-5003",
+        60.0
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1003",
+    "run": 1,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "pricing_error",
+    "actions": [
+      [
+        "issue_credit",
+        "SO-5003",
+        60.0
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1004",
+    "run": 1,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "transport_damage",
+    "actions": [
+      [
+        "reship_order",
+        "SO-5004",
+        null
+      ],
+      [
+        "contact_carrier",
+        "SO-5004",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1004",
+    "run": 0,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "transport_damage",
+    "actions": [
+      [
+        "reship_order",
+        "SO-5004",
+        null
+      ],
+      [
+        "contact_carrier",
+        "SO-5004",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1004",
+    "run": 2,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "transport_damage",
+    "actions": [
+      [
+        "reship_order",
+        "SO-5004",
+        null
+      ],
+      [
+        "contact_carrier",
+        "SO-5004",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1003",
+    "run": 2,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "pricing_error",
+    "actions": [
+      [
+        "issue_credit",
+        "SO-5003",
+        60.0
+      ]
+    ],
+    "notes": [
+      "invalid_reply"
+    ],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1005",
+    "run": 1,
+    "passed": true,
+    "failed": [],
+    "confidence": "medium",
+    "category": "address_change",
+    "actions": [
+      [
+        "contact_carrier",
+        "SO-5005",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [
+      "the model's confidence was medium"
+    ],
+    "error": null
+  },
+  {
+    "ticket": "T-1005",
+    "run": 0,
+    "passed": true,
+    "failed": [],
+    "confidence": "medium",
+    "category": "address_change",
+    "actions": [
+      [
+        "contact_carrier",
+        "SO-5005",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [
+      "the model's confidence was medium"
+    ],
+    "error": null
+  },
+  {
+    "ticket": "T-1005",
+    "run": 2,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "address_change",
+    "actions": [
+      [
+        "contact_carrier",
+        "SO-5005",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1006",
+    "run": 0,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "wrong_reference",
+    "actions": [
+      [
+        "no_action",
+        "SO-5060",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1006",
+    "run": 1,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "wrong_reference",
+    "actions": [
+      [
+        "no_action",
+        "SO-5060",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1006",
+    "run": 2,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "wrong_reference",
+    "actions": [
+      [
+        "no_action",
+        "SO-5060",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1007",
+    "run": 0,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "carrier_delay",
+    "actions": [
+      [
+        "contact_carrier",
+        "SO-5001",
+        null
+      ],
+      [
+        "expedite_shipment",
+        "SO-5001",
+        null
+      ]
+    ],
+    "notes": [
+      "invalid_reply"
+    ],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1007",
+    "run": 1,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "carrier_delay",
+    "actions": [
+      [
+        "contact_carrier",
+        "SO-5001",
+        null
+      ],
+      [
+        "expedite_shipment",
+        "SO-5001",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1007",
+    "run": 2,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "carrier_delay",
+    "actions": [
+      [
+        "contact_carrier",
+        "SO-5001",
+        null
+      ],
+      [
+        "expedite_shipment",
+        "SO-5001",
+        null
+      ]
+    ],
+    "notes": [],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1008",
+    "run": 0,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "pricing_error",
+    "actions": [
+      [
+        "issue_credit",
+        "SO-5003",
+        60.0
+      ]
+    ],
+    "notes": [
+      "invalid_reply"
+    ],
+    "reasons": [],
+    "error": null
+  },
+  {
+    "ticket": "T-1008",
+    "run": 1,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "pricing_error",
+    "actions": [
+      [
+        "issue_credit",
+        "SO-5003",
+        60.0
+      ]
+    ],
+    "notes": [
+      "invalid_proposal"
+    ],
+    "reasons": [
+      "the model had to be corrected (a proposal that broke the schema)"
+    ],
+    "error": null
+  },
+  {
+    "ticket": "T-1008",
+    "run": 2,
+    "passed": true,
+    "failed": [],
+    "confidence": "high",
+    "category": "pricing_error",
+    "actions": [
+      [
+        "issue_credit",
+        "SO-5003",
+        60.0
+      ]
+    ],
+    "notes": [
+      "invalid_proposal"
+    ],
+    "reasons": [
+      "the model had to be corrected (a proposal that broke the schema)"
+    ],
+    "error": null
+  }
+]

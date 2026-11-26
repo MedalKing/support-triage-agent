@@ -32,6 +32,8 @@ APPROVAL_REASONS = {
 NEEDS_APPROVAL = set(APPROVAL_REASONS)
 REDIRECT_REASON = "Sends the goods somewhere else. Check the new address with the customer's message."
 MAX_AGENT_CREDIT_SHARE = 0.25  # larger credits are out of scope for the agent
+# Carriers that accept a new address while the goods are in transit (runbook: address-change).
+REDIRECT_CARRIERS = {"NordFreight"}
 
 
 class Action(BaseModel):
@@ -78,7 +80,7 @@ SUBMIT_PROPOSAL_TOOL = {
         "properties": {
             "category": {"type": "string", "enum": list(Category.__args__)},
             "likely_cause": {"type": "string", "description": "One or two sentences."},
-            "evidence": {"type": "array", "items": {"type": "string"},
+            "evidence": {"type": "array", "items": {"type": "string"}, "minItems": 1,
                          "description": "At least one fact from tool results that supports the cause, with ids."},
             "actions": {
                 "type": "array",
@@ -179,6 +181,10 @@ def check_policy(proposal: Proposal, ticket_customer_id: str, erp: Any, proposal
             if any(e["event"] == "picked_up" for e in events):
                 problems.append(f"update_delivery_address: order {action.order_id} is already picked up; "
                                 "ask the carrier for a redirect instead")
+        elif action.type == "contact_carrier" and (action.new_address or "").strip():
+            if order.get("carrier") not in REDIRECT_CARRIERS:
+                problems.append(f"contact_carrier: {order.get('carrier')} does not redirect goods in transit, "
+                                f"so {action.order_id} can't be sent to a new address")
         elif action.type == "reship_order":
             for line in order["lines"]:
                 stock = erp.get_stock(line["sku"])
