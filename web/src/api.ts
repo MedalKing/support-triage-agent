@@ -1,5 +1,13 @@
 // archived: the reviewer is done with it. Everything else is the inbox.
-export type Ticket = { id: string; customer_id: string; subject: string; body: string; archived: boolean };
+export type Ticket = {
+  id: string;
+  received: string; // "2026-11-23T08:12", the demo's own clock
+  customer_id: string;
+  customer_name: string;
+  subject: string;
+  body: string;
+  archived: boolean;
+};
 export type Action = {
   type: string;
   order_id: string;

@@ -258,3 +258,9 @@ def test_a_new_live_run_brings_an_email_back_and_start_over_empties_the_archive(
     assert archived(client) == {"T-1003"}
     client.post("/api/reset")
     assert archived(client) == set()
+
+
+def test_the_inbox_lists_newest_first_with_the_company_name(client):
+    rows = client.get("/api/tickets").json()
+    assert [r["received"] for r in rows] == sorted((r["received"] for r in rows), reverse=True)
+    assert {r["customer_name"] for r in rows if r["customer_id"] == "C-201"} == {"Pohjola Bakery Ltd"}

@@ -90,6 +90,7 @@ export default function App() {
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
   const [view, setView] = useState<"inbox" | "archive">("inbox");
+  const [query, setQuery] = useState("");
   // The ticket on screen. A triage answer for a ticket the reviewer has left is dropped.
   const current = useRef<string | null>(null);
 
@@ -228,6 +229,10 @@ export default function App() {
 
   const inbox = tickets.filter((t) => !t.archived);
   const archive = tickets.filter((t) => t.archived);
+  const q = query.trim().toLowerCase();
+  const shown = (view === "inbox" ? inbox : archive).filter(
+    (t) => !q || [t.id, t.subject, t.body, t.customer_name, SCENARIOS[t.id] ?? ""].some((f) => f.toLowerCase().includes(q)),
+  );
   const isArchived = !!selected && archive.some((t) => t.id === selected.id);
   // The next email still waiting, after this one in the list, wrapping around.
   const at = tickets.findIndex((t) => t.id === selected?.id);
@@ -300,51 +305,79 @@ export default function App() {
             Support triage agent
           </button>
         </h1>
-        <div className="tabs" role="tablist">
-          {(["inbox", "archive"] as const).map((v) => (
-            <button key={v} role="tab" aria-selected={view === v} className={view === v ? "tab active" : "tab"}
-              onClick={() => setView(v)}>
-              {v === "inbox" ? "Inbox" : "Archive"} <span className="count">{(v === "inbox" ? inbox : archive).length}</span>
-            </button>
-          ))}
-        </div>
-        {(view === "inbox" ? inbox : archive).map((t) => (
-          <button key={t.id} className={selected.id === t.id ? "ticket active" : "ticket"} onClick={() => open(t.id)}>
-            {t.subject}
-            <span className="id">
-              {t.id} · {view === "inbox" ? SCENARIOS[t.id] : outcome(t.id)}
-              {view === "inbox" && config?.escalated[t.id] && " · escalated"}
-            </span>
-          </button>
-        ))}
-        {view === "inbox" && inbox.length === 0 && (
-          <p className="empty">
-            <strong>Inbox zero.</strong> Every email is handled.{" "}
-            <button className="link small" onClick={() => setView("archive")}>See the archive</button>
-          </p>
-        )}
-        {view === "archive" && archive.length === 0 && (
-          <p className="empty muted small">
-            Nothing here yet. An email moves here once every action on it is approved or declined.
-          </p>
+        <label className="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-4-4" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label={view === "inbox" ? "Search the inbox" : "Search the archive"}
+          />
+        </label>
+        {view === "archive" && (
+          <div className="listhead">
+            <button className="link small" onClick={() => setView("inbox")}>‹ Inbox</button>
+            <span>Archive</span>
+          </div>
         )}
 
-        {(audit.length > 0 || archive.length > 0) && (
-          <section className="audit">
-            {audit.length > 0 && <h2>Audit log</h2>}
-            {audit.map((e, i) => (
-              <div key={i} className="small entry">
-                {e.decision === "declined" ? "Declined " : "Approved "}
-                <strong>{e.type}</strong> on {e.order_id}
-                {e.amount_eur != null && <> · {e.amount_eur.toFixed(2)} €</>} <span className="muted">({e.ticket_id})</span>
-                {e.decline_reason && <div className="muted">“{e.decline_reason}”</div>}
-              </div>
-            ))}
-            <p className="muted small">The order system is simulated: actions are logged, only address changes edit the order.</p>
-            <button className="secondary" onClick={startOver} disabled={busy}>
-              Start over
+        <div className="list">
+          {shown.map((t) => (
+            <button key={t.id} className={selected.id === t.id ? "ticket active" : "ticket"} onClick={() => open(t.id)}>
+              <span className="meta">
+                <Badge id={t.customer_id} name={t.customer_name} />
+                <span className="who">{t.customer_name}</span>
+                <span className="when">{when(t.received)}</span>
+              </span>
+              <span className="subject">{t.subject}</span>
+              <span className="meta">
+                <span className="who">
+                  {t.id} · {view === "inbox" ? SCENARIOS[t.id] : outcome(t.id)}
+                </span>
+                {view === "inbox" && config?.escalated[t.id] && <span className="flag">escalated</span>}
+              </span>
             </button>
-          </section>
+          ))}
+          {query && shown.length === 0 && <p className="empty muted small">No emails match “{query}”.</p>}
+          {!query && view === "inbox" && inbox.length === 0 && (
+            <p className="empty">
+              <strong>Inbox zero.</strong> Every email is handled.
+            </p>
+          )}
+          {!query && view === "archive" && archive.length === 0 && (
+            <p className="empty muted small">
+              Nothing here yet. An email moves here once every action on it is approved or declined.
+            </p>
+          )}
+
+          {view === "archive" && (audit.length > 0 || archive.length > 0) && (
+            <section className="audit">
+              {audit.length > 0 && <h2>Audit log</h2>}
+              {audit.map((e, i) => (
+                <div key={i} className="small entry">
+                  {e.decision === "declined" ? "Declined " : "Approved "}
+                  <strong>{e.type}</strong> on {e.order_id}
+                  {e.amount_eur != null && <> · {e.amount_eur.toFixed(2)} €</>} <span className="muted">({e.ticket_id})</span>
+                  {e.decline_reason && <div className="muted">“{e.decline_reason}”</div>}
+                </div>
+              ))}
+              <p className="muted small">The order system is simulated: actions are logged, only address changes edit the order.</p>
+              <button className="secondary" onClick={startOver} disabled={busy}>
+                Start over
+              </button>
+            </section>
+          )}
+        </div>
+
+        {view === "inbox" && (
+          <button className="archive-link" onClick={() => setView("archive")}>
+            <span>Archive</span>
+            <span className="muted">{archive.length} ›</span>
+          </button>
         )}
       </aside>
 
@@ -564,6 +597,26 @@ export default function App() {
         )}
       </main>
     </div>
+  );
+}
+
+// The demo's "today" is Monday 2026-11-23: today's emails show the time, older ones the weekday.
+const DEMO_TODAY = "2026-11-23";
+function when(received: string): string {
+  const [day, time] = received.split("T");
+  if (day === DEMO_TODAY) return time;
+  return new Date(`${day}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short" });
+}
+
+// A small square with the customer's initials, its colour fixed per customer.
+function Badge({ id, name }: { id: string; name: string }) {
+  const words = name.split(/\s+/).filter((w) => !/^(ltd|oy|ab|oyj|inc)$/i.test(w));
+  const initials = words.slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const hue = [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+  return (
+    <span className="badge" style={{ background: `hsl(${hue} 45% 42%)` }} aria-hidden="true">
+      {initials}
+    </span>
   );
 }
 

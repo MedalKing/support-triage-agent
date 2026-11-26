@@ -14,8 +14,6 @@ main { padding: 24px; max-width: 860px; }
 h1 { font-size: 18px; margin: 0 0 12px; }
 h2 { font-size: 18px; margin: 0 0 8px; }
 h3 { font-size: 14px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.ticket { display: block; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 2px; border: none;
-  border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; font-size: 14px; }
 .ticket:hover { background: var(--bg); }
 .ticket.active { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
 .id { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
@@ -68,12 +66,31 @@ button.link.small { font-size: 13px; margin: 0; }
 .tag.declined { color: var(--error); border-color: var(--error); }
 .decline { margin-top: 8px; display: grid; gap: 6px; font-size: 14px; }
 .decline textarea { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); resize: vertical; }
-.tabs { display: flex; gap: 4px; margin: 4px 0 10px; border-bottom: 1px solid var(--line); }
-button.tab { background: transparent; color: var(--muted); border: none; border-bottom: 2px solid transparent; border-radius: 0;
-  padding: 6px 8px; margin-bottom: -1px; font-size: 14px; }
-button.tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
-.count { font-size: 12px; color: var(--muted); font-weight: normal; margin-left: 2px; }
+aside { position: sticky; top: 0; height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; }
+.search { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin-bottom: 10px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg); }
+.search svg { width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 2; flex: none; }
+.search input { border: none; outline: none; background: transparent; color: var(--text); width: 100%; padding: 2px 0; }
+.search:focus-within { border-color: var(--accent); }
+.listhead { display: flex; align-items: baseline; gap: 10px; padding: 0 4px 8px; font-weight: 600; font-size: 14px; }
+.listhead .link { margin: 0; }
+.list { flex: 1; overflow-y: auto; margin: 0 -6px; padding: 0 6px; }
+button.ticket { display: block; width: 100%; text-align: left; padding: 10px; margin-bottom: 2px; border: none; border-radius: 8px;
+  background: transparent; color: var(--text); cursor: pointer; }
+.ticket .meta { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); min-width: 0; }
+.ticket .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ticket .when, .ticket .flag { margin-left: auto; flex: none; }
+.ticket .flag { color: var(--warn); font-size: 12px; }
+.ticket .subject { display: block; font-weight: 600; font-size: 15px; margin: 4px 0; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.badge { width: 20px; height: 20px; border-radius: 4px; display: grid; place-items: center; flex: none; color: #fff;
+  font-size: 10px; font-weight: 700; letter-spacing: .02em; }
 .empty { padding: 12px 10px; font-size: 14px; line-height: 1.5; }
+button.archive-link { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 8px;
+  padding: 12px 10px; background: transparent; color: var(--text); border: none; border-top: 1px solid var(--line);
+  border-radius: 0; font-size: 15px; }
+button.archive-link:hover { background: var(--bg); }
 .done { border: 1px solid var(--accent); border-radius: 6px; padding: 10px 12px; margin-top: 10px; font-size: 14px; }
 .done .row { margin-top: 8px; flex-wrap: wrap; }
 .hint { align-self: center; }
+@media (max-width: 720px) { aside { position: static; height: auto; } .list { max-height: 50vh; } }

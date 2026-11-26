@@ -34,6 +34,10 @@ class ERP:
         credits = [{"ticket_id": e["ticket_id"], "amount_eur": e["amount_eur"]} for e in self.approved_credits(order_id)]
         return {**out, "approved_credits": credits} if credits else out
 
+    def customer_name(self, customer_id: str) -> str | None:
+        customer = self._data["customers"].get(customer_id)
+        return customer and customer["name"]
+
     def list_customer_orders(self, customer_id: str) -> list[dict[str, Any]]:
         return [
             {"order_id": oid, "status": o["status"], "promised_date": o["promised_date"],

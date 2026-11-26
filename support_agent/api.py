@@ -156,7 +156,11 @@ def config() -> dict[str, Any]:
 
 @app.get("/api/tickets")
 def list_tickets(s: Session = Depends(session)) -> list[dict[str, Any]]:
-    return [{**t, "archived": t["id"] in s.archived} for t in tickets.values()]
+    # Newest first, like a mail inbox. The customer's company name is for the reviewer only;
+    # the model gets the ticket text and the customer id, never this list.
+    rows = [{**t, "customer_name": s.erp.customer_name(t["customer_id"]) or t["customer_id"],
+             "archived": t["id"] in s.archived} for t in tickets.values()]
+    return sorted(rows, key=lambda t: t.get("received", ""), reverse=True)
 
 
 def undecided(result: TriageResult | None) -> list[int]:
