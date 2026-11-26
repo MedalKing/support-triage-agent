@@ -34,14 +34,30 @@ button:disabled { opacity: .5; cursor: default; }
 .tag.declined { color: var(--error); border-color: var(--error); }
 .why { color: var(--warn); font-size: 13px; margin-top: 2px; }
 .action { display: block; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.action input[type="checkbox"] { margin: 0 8px 0 0; vertical-align: middle; }
+.action-type { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; font-weight: 600;
+  padding: 1px 5px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); }
+.evidence { margin: 6px 0 0; padding-left: 20px; line-height: 1.45; }
+.evidence li + li { margin-top: 5px; }
 .error { background: var(--error-bg); color: var(--error); padding: 10px 12px; border-radius: 6px; }
 .error ul { margin: 6px 0 0; padding-left: 18px; }
 pre { white-space: pre-wrap; font-size: 13px; margin: 4px 0; }
 .reply { background: var(--bg); padding: 10px; border-radius: 6px; }
 .step { margin-top: 10px; }
-@media (max-width: 720px) { .layout { grid-template-columns: 1fr; } aside { border-right: none; border-bottom: 1px solid var(--line); position: static; height: auto; } .list { max-height: 50vh; } }
+.mobile-nav { display: none; }
+@media (max-width: 720px) {
+  .layout { grid-template-columns: 1fr; }
+  aside { border-right: none; border-bottom: 1px solid var(--line); position: static; height: auto; }
+  .layout.mobile-detail aside { display: none; }
+  .layout.mobile-list main { display: none; }
+  .layout.mobile-list aside { min-height: 100vh; }
+  .layout.mobile-list .list { max-height: none; }
+  main { padding: 16px; }
+  .mobile-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+}
 .escalation { border: 1px solid var(--warn); border-radius: 6px; padding: 8px 10px; margin: 8px 0; font-size: 14px; display: grid; gap: 4px; }
-.esc-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.esc-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+.esc-reason { color: var(--warn); font-size: 13px; }
 .small { font-size: 13px; }
 button.home { all: unset; cursor: pointer; font: inherit; color: var(--text); }
 button.home:focus-visible { outline: 2px solid var(--accent); }

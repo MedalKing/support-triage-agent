@@ -85,6 +85,7 @@ export default function App() {
   const [view, setView] = useState<"inbox" | "archive">("inbox");
   const [query, setQuery] = useState("");
   const [touring, setTouring] = useState(false);
+  const [mobileList, setMobileList] = useState(false);
   const current = useRef<string | null>(null);
 
   useEffect(() => {
@@ -119,6 +120,7 @@ export default function App() {
     setMessage(null);
     setDeclining(false);
     setReason("");
+    setMobileList(false);
     window.scrollTo(0, 0);
     if (config?.recorded.includes(t.id)) run(false, t);
   }
@@ -283,7 +285,7 @@ export default function App() {
         </p>
         <h1>An AI agent proposes. A person decides.</h1>
         <p className="lead">
-          Read-only order lookups, policy enforced in code, human approval on every action.
+          Read-only lookups, policy enforced in code, human approval on every action.
         </p>
         <div className="row start">
           <button className="primary" onClick={() => startTour(tour[0].ticket)} disabled={!ready}>
@@ -324,7 +326,7 @@ export default function App() {
           : activeStep?.cue;
 
   return (
-    <div className="layout">
+    <div className={`layout ${mobileList ? "mobile-list" : "mobile-detail"}`}>
       <aside>
         <h1>
           <button className="home" onClick={goHome} title="Start page">
@@ -392,7 +394,7 @@ export default function App() {
                   <span className={e.decision === "declined" ? "mark err" : "mark ok"} aria-label={e.decision}>
                     {e.decision === "declined" ? "✕" : "✓"}
                   </span>{" "}
-                  <strong>{e.type}</strong> · {e.order_id}
+                  <code className="action-type">{e.type}</code> · {e.order_id}
                   {e.amount_eur != null && <> · {e.amount_eur.toFixed(2)} €</>} <span className="muted">({e.ticket_id})</span>
                   {e.decline_reason && <div className="muted">“{e.decline_reason}”</div>}
                 </div>
@@ -413,6 +415,14 @@ export default function App() {
       </aside>
 
       <main>
+        <div className="mobile-nav">
+          <button className="link" onClick={() => setMobileList(true)}>
+            ‹ {view === "inbox" ? `Inbox (${inbox.length})` : `Archive (${archive.length})`}
+          </button>
+          <button className="link small muted" onClick={goHome}>
+            Home
+          </button>
+        </div>
         {touring && (
           <div className="tourbar">
             <div className="stepper">
@@ -491,11 +501,7 @@ export default function App() {
                   <strong>
                     {modelName(result.escalation.from)} → {modelName(result.escalation.to)}
                   </strong>
-                  {result.escalation.reasons.map((r, i) => (
-                    <span key={i} className="tag warn">
-                      {r}
-                    </span>
-                  ))}
+                  <span className="esc-reason">{result.escalation.reasons.join(" · ")}</span>
                 </div>
                 <FirstAttempt result={result} />
               </div>
@@ -504,7 +510,7 @@ export default function App() {
             <p>{result.proposal.likely_cause}</p>
 
             <h3>Evidence</h3>
-            <ul>
+            <ul className="evidence">
               {result.proposal.evidence.map((e, i) => (
                 <li key={i}>{e}</li>
               ))}
@@ -532,7 +538,7 @@ export default function App() {
                     onChange={(e) => setChecked(e.target.checked ? [...checked, i] : checked.filter((x) => x !== i))}
                   />
                 )}
-                <strong>{a.type}</strong> · {a.order_id}
+                <code className="action-type">{a.type}</code> · {a.order_id}
                 {a.amount_eur != null && <> · {a.amount_eur.toFixed(2)} €</>}
                 {a.new_address && <> · {a.new_address}</>}
                 {a.needs_approval && !blocked && !result.applied.includes(i) && !(String(i) in result.declined) && (
@@ -546,7 +552,7 @@ export default function App() {
                   </>
                 )}
                 <div className="muted">{a.reason}</div>
-                {a.approval_reason && <div className="why">Check: {a.approval_reason}</div>}
+                {a.approval_reason && <div className="why">{a.approval_reason}</div>}
               </label>
             ))}
 
