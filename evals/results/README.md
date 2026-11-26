@@ -6,13 +6,13 @@ The same list is on the demo's admin-only Evals page.
 
 | Run | When | Passed | Escalated | Cost per ticket | Median time | Prompt cache |
 | --- | --- | --- | --- | --- | --- | --- |
+| [Opus 5.5 only](2026-11-26-1414-claude_claude-opus-5-5.json) | 2026-11-26 14:14 | 10/11 | 0 | $0.0434 | 12.7 s | on |
+| [Haiku 5.5 only](2026-11-26-1410-claude_claude-haiku-5-5.json) | 2026-11-26 14:10 | 10/11 | 0 | $0.0011 | 8.6 s | on |
+| [Auto (Haiku → Opus)](2026-11-26-1407-auto_claude-haiku-5-5_to_claude-opus-5-5.json) | 2026-11-26 14:07 | 11/11 | 1 | $0.0048 | 10.1 s | on |
+| [Auto (Haiku → Opus)](2026-11-26-1404-auto_claude-haiku-5-5_to_claude-opus-5-5.json) | 2026-11-26 14:04 | 11/11 | 2 | $0.0108 | 10.3 s | on |
 | [Auto (Haiku → Opus)](2026-11-26-caching/1340-auto-cache1.json) | 2026-11-26 13:40 | 9/9 | 2 | $0.0070 | 12.3 s | on |
 | [Opus 5.5 only](2026-11-26-caching/1338-opus-cache1.json) | 2026-11-26 13:38 | 8/9 | 0 | $0.0430 | 13.0 s | on |
 | [Haiku 5.5 only](2026-11-26-caching/1336-haiku-cache1.json) | 2026-11-26 13:36 | 9/9 | 0 | $0.0014 | 8.1 s | on |
 | [Auto (Haiku → Opus)](2026-11-26-caching/1335-auto-cache0.json) | 2026-11-26 13:35 | 9/9 | 0 | $0.0020 | 8.8 s | off |
 | [Opus 5.5 only](2026-11-26-caching/1333-opus-cache0.json) | 2026-11-26 13:33 | 8/9 | 0 | $0.0637 | 12.9 s | off |
 | [Haiku 5.5 only](2026-11-26-caching/1331-haiku-cache0.json) | 2026-11-26 13:31 | 9/9 | 0 | $0.0022 | 9.7 s | off |
-| [Opus 5.5 only](2026-11-26-1239-claude_claude-opus-5-5.json) | 2026-11-26 12:39 | 8/9 | 0 | – | – | – |
-| [Haiku 5.5 only](2026-11-26-1236-claude_claude-haiku-5-5.json) | 2026-11-26 12:36 | 7/9 | 0 | – | – | – |
-| [Auto (Haiku → Opus)](2026-11-26-1234-auto_claude-haiku-5-5_to_claude-opus-5-5.json) | 2026-11-26 12:34 | 9/9 | 1 | – | – | – |
-| [Auto (Haiku → Opus)](2026-11-26-1231-auto_claude-haiku-5-5_to_claude-opus-5-5.json) | 2026-11-26 12:31 | 9/9 | 1 | – | – | – |

@@ -1,0 +1,190 @@
+{
+  "ticket_id": "T-1010",
+  "declined": {},
+  "provider": "claude:claude-haiku-5-5",
+  "escalation": null,
+  "proposal": {
+    "category": "carrier_delay",
+    "likely_cause": "NordFreight's trailer was damaged at the Turku hub on 2026-11-01 and the goods are waiting to be reloaded, so the order is 15 working days past its 2026-11-02 promised date. This is a carrier-side delay; no delivery date has been confirmed.",
+    "evidence": [
+      "SO-5008 (customer C-204, Baltic Foods AB): promised 2026-11-02, status shipped, carrier NordFreight, shipment SH-9008, get_order reports working_days_late = 15.",
+      "SH-9008 events: picked_up at Espoo DC 2026-10-30; arrived_hub NordFreight hub Turku 2026-10-31; exception at NordFreight hub Turku 2026-11-01 07:45, 'Trailer damaged; goods waiting to be reloaded'. No delivery event since.",
+      "Runbook 'late-delivery': an exception event at a carrier hub is a carrier-side delay; contact the carrier for a new ETA; propose expedite_shipment when the delay is more than 5 working days; no credits for carrier delays under 10 working days; compensation above that needs manager approval and is out of scope for agents.",
+      "C-204 tier is standard. SO-5004 (same customer, BOX-FOOD-250, 1000 units, promised 2026-11-08) is delivered via BalticLine, so the 'second problem this month' is not identified in the ERP data.",
+      "Ticket requests a 30% invoice discount (SO-5008 invoice total EUR 1300.00) and boxes this week; the 30% discount is above agent authority per the runbook."
+    ],
+    "actions": [
+      {
+        "type": "contact_carrier",
+        "order_id": "SO-5008",
+        "reason": "Shipment SH-9008 has been held at NordFreight hub Turku since the 2026-11-01 trailer-damage exception. Ask NordFreight for a confirmed reload and delivery ETA and for the cause of the hold.",
+        "amount_eur": null,
+        "new_address": null,
+        "needs_approval": false,
+        "approval_reason": null
+      },
+      {
+        "type": "expedite_shipment",
+        "order_id": "SO-5008",
+        "reason": "Carrier-side delay is 15 working days, over the 5-day threshold in the late-delivery runbook. Requires approval. Ask for priority reload and delivery once NordFreight confirms the ETA.",
+        "amount_eur": null,
+        "new_address": null,
+        "needs_approval": true,
+        "approval_reason": "Faster freight costs us extra. Check that the delay is long enough to justify it."
+      },
+      {
+        "type": "no_action",
+        "order_id": "SO-5008",
+        "reason": "No credit proposed. The runbook does not allow credits for carrier delays under 10 working days, and compensation above that needs manager approval, which is outside agent scope. The 30% discount request (EUR 1300.00 invoice) is for a manager to decide.",
+        "amount_eur": null,
+        "new_address": null,
+        "needs_approval": false,
+        "approval_reason": null
+      }
+    ],
+    "customer_reply": "Dear Baltic Foods team,\n\nThank you for your message about order SO-5008. We are sorry it is so late. Our records show the shipment was picked up from our Espoo distribution centre on 30 October and reached the NordFreight hub in Turku on 31 October. On 1 November the carrier reported that the trailer was damaged and the goods were waiting to be reloaded. The shipment has not been delivered since.\n\nWe are asking NordFreight for a confirmed reload date and a delivery estimate, and we are reviewing whether the delivery can be expedited. We will let you know the carrier's confirmed date as soon as we have it. We cannot confirm a delivery date until the carrier does.\n\nWe have noted your request for a discount on the invoice. We cannot confirm any compensation in this message, and we will come back to you on that point.\n\nKind regards,\nCustomer Support",
+    "confidence": "high"
+  },
+  "policy_violations": [],
+  "trace": [
+    {
+      "kind": "tool",
+      "name": "get_order",
+      "detail": {
+        "arguments": {
+          "order_id": "SO-5008"
+        },
+        "result": "{\"order_id\": \"SO-5008\", \"customer_id\": \"C-204\", \"order_date\": \"2026-10-20\", \"status\": \"shipped\", \"lines\": [{\"sku\": \"BOX-FOOD-250\", \"qty\": 2000, \"unit_price_eur\": 0.65}], \"promised_date\": \"2026-11-02\", \"carrier\": \"NordFreight\", \"shipment_id\": \"SH-9008\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Hamngatan 8, Stockholm\", \"invoice_total_eur\": 1300.0, \"customer\": {\"id\": \"C-204\", \"name\": \"Baltic Foods AB\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"standard\"}, \"working_days_late\": 15}",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "list_customer_orders",
+      "detail": {
+        "arguments": {
+          "customer_id": "C-204"
+        },
+        "result": "[{\"order_id\": \"SO-5004\", \"status\": \"delivered\", \"promised_date\": \"2026-11-08\", \"skus\": [\"BOX-FOOD-250\"]}, {\"order_id\": \"SO-5008\", \"status\": \"shipped\", \"promised_date\": \"2026-11-02\", \"skus\": [\"BOX-FOOD-250\"]}]",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "get_shipment_events",
+      "detail": {
+        "arguments": {
+          "shipment_id": "SH-9008"
+        },
+        "result": "[{\"ts\": \"2026-10-30T09:00\", \"event\": \"picked_up\", \"location\": \"Espoo DC\"}, {\"ts\": \"2026-10-31T16:20\", \"event\": \"arrived_hub\", \"location\": \"NordFreight hub Turku\"}, {\"ts\": \"2026-11-01T07:45\", \"event\": \"exception\", \"location\": \"NordFreight hub Turku\", \"note\": \"Trailer damaged; goods waiting to be reloaded\"}]",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "search_runbooks",
+      "detail": {
+        "arguments": {
+          "query": "late shipment carrier delay compensation discount request"
+        },
+        "result": "[{\"runbook\": \"late-delivery\", \"score\": 8.12, \"text\": \"# Late delivery\\n\\nApplies when the promised date has passed and the shipment is not delivered.\\n\\n1. Check shipment events. An `exception` event at a carrier hub means a carrier-side delay.\\n2. Carrier-side delay: contact the carrier (action `contact_carrier`) and ask for a new ETA. If the customer is a key account or the delay is more than 5 working days, propose `expedite_shipment` (needs approval).\\n3. Do not offer credits for carrier delays below 10 working days. Compensation above that needs a manager's approval and is out of scope for agents.\\n4. Tell the customer what happened, what we are doing and when we will update them. Do not promise a delivery date the carrier has not confirmed.\\n\"}, {\"runbook\": \"address-change\", \"score\": 2.58, \"text\": \"# Delivery address change\\n\\nApplies when the customer wants to change where an order is delivered.\\n\\n1. Before pickup: propose `update_delivery_address` (needs approval).\\n2. After pickup (`picked_up` event exists): the address cannot be changed in our system. Propose `contact_carrier` to request a redirect; NordFreight allows redirects while in transit, other carriers do not.\\n3. Confirm the new address with the customer in the reply.\\n\"}]",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "get_order",
+      "detail": {
+        "arguments": {
+          "order_id": "SO-5004"
+        },
+        "result": "{\"order_id\": \"SO-5004\", \"customer_id\": \"C-204\", \"order_date\": \"2026-10-23\", \"status\": \"delivered\", \"lines\": [{\"sku\": \"BOX-FOOD-250\", \"qty\": 1000, \"unit_price_eur\": 0.65}], \"promised_date\": \"2026-11-08\", \"carrier\": \"BalticLine\", \"shipment_id\": \"SH-9004\", \"price_list\": \"PL-2026-Q4\", \"delivery_address\": \"Hamngatan 8, Stockholm\", \"invoice_total_eur\": 650.0, \"customer\": {\"id\": \"C-204\", \"name\": \"Baltic Foods AB\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"standard\"}}",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "submit_proposal",
+      "detail": {
+        "category": "carrier_delay",
+        "evidence": [
+          "SO-5008 (customer C-204, Baltic Foods AB): promised 2026-11-02, status shipped, carrier NordFreight, shipment SH-9008, get_order reports working_days_late = 15.",
+          "SH-9008 events: picked_up at Espoo DC 2026-10-30; arrived_hub NordFreight hub Turku 2026-10-31; exception at NordFreight hub Turku 2026-11-01 07:45, 'Trailer damaged; goods waiting to be reloaded'. No delivery event since.",
+          "Runbook 'late-delivery': an exception event at a carrier hub is a carrier-side delay; contact the carrier for a new ETA; propose expedite_shipment when the delay is more than 5 working days; no credits for carrier delays under 10 working days; compensation above that needs manager approval and is out of scope for agents.",
+          "C-204 tier is standard. SO-5004 (same customer, BOX-FOOD-250, 1000 units, promised 2026-11-08) is delivered via BalticLine, so the 'second problem this month' is not identified in the ERP data.",
+          "Ticket requests a 30% invoice discount (SO-5008 invoice total EUR 1300.00) and boxes this week; the 30% discount is above agent authority per the runbook."
+        ],
+        "likely_cause": "NordFreight's trailer was damaged at the Turku hub on 2026-11-01 and the goods are waiting to be reloaded, so the order is 15 working days past its 2026-11-02 promised date. This is a carrier-side delay; no delivery date has been confirmed.",
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5008",
+            "reason": "Shipment SH-9008 has been held at NordFreight hub Turku since the 2026-11-01 trailer-damage exception. Ask NordFreight for a confirmed reload and delivery ETA and for the cause of the hold.",
+            "amount_eur": null,
+            "new_address": null
+          },
+          {
+            "type": "expedite_shipment",
+            "order_id": "SO-5008",
+            "reason": "Carrier-side delay is 15 working days, over the 5-day threshold in the late-delivery runbook. Requires approval. Ask for priority reload and delivery once NordFreight confirms the ETA.",
+            "amount_eur": null,
+            "new_address": null
+          },
+          {
+            "type": "no_action",
+            "order_id": "SO-5008",
+            "reason": "No credit proposed. The runbook does not allow credits for carrier delays under 10 working days, and compensation above that needs manager approval, which is outside agent scope. The 30% discount request (EUR 1300.00 invoice) is for a manager to decide.",
+            "amount_eur": null,
+            "new_address": null
+          }
+        ],
+        "customer_reply": "Dear Baltic Foods team,\n\nThank you for your message about order SO-5008. We are sorry it is so late. Our records show the shipment was picked up from our Espoo distribution centre on 30 October and reached the NordFreight hub in Turku on 31 October. On 1 November the carrier reported that the trailer was damaged and the goods were waiting to be reloaded. The shipment has not been delivered since.\n\nWe are asking NordFreight for a confirmed reload date and a delivery estimate, and we are reviewing whether the delivery can be expedited. We will let you know the carrier's confirmed date as soon as we have it. We cannot confirm a delivery date until the carrier does.\n\nWe have noted your request for a discount on the invoice. We cannot confirm any compensation in this message, and we will come back to you on that point.\n\nKind regards,\nCustomer Support",
+        "confidence": "high"
+      }
+    }
+  ],
+  "redactions": [
+    "[EMAIL_1]",
+    "[PHONE_1]"
+  ],
+  "error": null,
+  "usage": [
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 4,
+      "output_tokens": 106,
+      "cache_write_tokens": 2262,
+      "cache_read_tokens": 0,
+      "seconds": 1.992
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 2,
+      "output_tokens": 170,
+      "cache_write_tokens": 545,
+      "cache_read_tokens": 2262,
+      "seconds": 1.018
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 2,
+      "output_tokens": 1830,
+      "cache_write_tokens": 1113,
+      "cache_read_tokens": 2807,
+      "seconds": 7.565
+    }
+  ],
+  "usage_summary": {
+    "calls": 3,
+    "models": [
+      "claude-haiku-5-5"
+    ],
+    "input_tokens": 8997,
+    "cached_input_tokens": 5069,
+    "output_tokens": 2106,
+    "model_seconds": 10.58,
+    "cost_usd": 0.001594
+  },
+  "seconds": 10.63,
+  "as_of": "2026-11-23"
+}

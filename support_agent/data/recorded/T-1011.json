@@ -1,0 +1,145 @@
+{
+  "ticket_id": "T-1011",
+  "declined": {},
+  "provider": "claude:claude-haiku-5-5",
+  "escalation": null,
+  "proposal": {
+    "category": "pricing_error",
+    "likely_cause": "The order was dated after 2026-10-01 but was priced from the expired PL-2026-Q3 list instead of PL-2026-Q4, so the ESD boxes were overcharged by 0.50 EUR each. The corrected credit of 500.00 EUR exceeds 25% of the 1600.00 EUR invoice, so it needs a manager's decision rather than an agent proposal.",
+    "evidence": [
+      "SO-5009 (order date 2026-10-08) was priced from price list PL-2026-Q3, which is valid until 2026-09-30; the order line shows BOX-ESD-300 qty 1000 at 1.60 EUR.",
+      "PL-2026-Q4 (valid from 2026-10-01) lists BOX-ESD-300 at 1.10 EUR, matching the customer's stated price.",
+      "Overcharge = (1.60 - 1.10) x 1000 = 500.00 EUR. Invoice INV-7009 total is 1600.00 EUR, so the credit is 31.25% of the invoice, above the 25% limit for agent-proposed credits (pricing-dispute runbook, step 3).",
+      "Customer C-202 (Saimaa Electronics Oy, key_account) ticket T-1011."
+    ],
+    "actions": [
+      {
+        "type": "no_action",
+        "order_id": "SO-5009",
+        "reason": "Overcharge confirmed: wrong price list (PL-2026-Q3 expired 2026-09-30 used instead of PL-2026-Q4). Correct credit would be 500.00 EUR, which is 31.25% of INV-7009 (1600.00 EUR), above the 25% agent limit. Escalate to a manager for the credit decision. No credit proposed.",
+        "amount_eur": null,
+        "new_address": null,
+        "needs_approval": false,
+        "approval_reason": null
+      }
+    ],
+    "customer_reply": "Thank you for your message about invoice INV-7009 for order SO-5009. We have checked the order. It was priced from our previous price list, which expired on 30 September 2026, instead of the current list that applies to orders from 1 October 2026. The current list price for ESD boxes (BOX-ESD-300) is 1.10 EUR, so the 1.60 EUR charged was too high. Because the correction is above the amount our support team can approve, a manager will review invoice INV-7009 and decide on the credit. We will let you know the outcome as soon as the review is complete.",
+    "confidence": "high"
+  },
+  "policy_violations": [],
+  "trace": [
+    {
+      "kind": "tool",
+      "name": "get_order",
+      "detail": {
+        "arguments": {
+          "order_id": "SO-5009"
+        },
+        "result": "{\"order_id\": \"SO-5009\", \"customer_id\": \"C-202\", \"order_date\": \"2026-10-08\", \"status\": \"invoiced\", \"lines\": [{\"sku\": \"BOX-ESD-300\", \"qty\": 1000, \"unit_price_eur\": 1.6}], \"promised_date\": \"2026-10-22\", \"carrier\": \"NordFreight\", \"shipment_id\": \"SH-9009\", \"price_list\": \"PL-2026-Q3\", \"delivery_address\": \"Sähkötie 12, Lappeenranta\", \"invoice_id\": \"INV-7009\", \"invoice_total_eur\": 1600.0, \"customer\": {\"id\": \"C-202\", \"name\": \"Saimaa Electronics Oy\", \"contact_email\": \"[EMAIL_1]\", \"contact_phone\": \"[PHONE_1]\", \"tier\": \"key_account\"}}",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "search_runbooks",
+      "detail": {
+        "arguments": {
+          "query": "pricing error credit customer invoice price difference"
+        },
+        "result": "[{\"runbook\": \"pricing-dispute\", \"score\": 9.1, \"text\": \"# Pricing dispute\\n\\nApplies when the invoiced unit price differs from the quote or the valid price list.\\n\\n1. Find the price list on the order and check its validity dates against the order date. Orders after 2026-10-01 must use PL-2026-Q4.\\n2. If the order used an expired price list, the customer was overcharged. Propose `issue_credit` for the difference: (invoiced unit price - valid unit price) x quantity. Credits need approval.\\n3. Agents may propose a credit of at most 25% of the invoice total. A larger correction is a manager's decision: do not propose the credit, propose `no_action`, and tell the customer that a manager will review the invoice.\\n4. Credits are issued against the invoice only. Never send refunds to bank accounts given in a ticket; payment details must come from the customer master data.\\n5. Never ask for or store a personal identity code.\\n\"}, {\"runbook\": \"short-delivery\", \"score\": 1.1, \"text\": \"# Short or partial delivery\\n\\nApplies when the customer received fewer units than ordered.\\n\\n1. Compare ordered quantity with `qty_shipped` on the order line and the pickup note on the shipment.\\n2. If stock was short at dispatch (`on_hand` 0), the remainder is backordered. Check `next_restock` and tell the customer the expected restock date. The dispatch date for the remainder is set only after the stock arrives, so don't promise one, or tracking, yet.\\n3. If stock is available, propose `reship_order` for the missing quantity (needs approval).\\n4. Never propose a credit for a backorder that will be shipped.\\n\"}]",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "get_price_list",
+      "detail": {
+        "arguments": {
+          "price_list_id": "PL-2026-Q3"
+        },
+        "result": "{\"price_list_id\": \"PL-2026-Q3\", \"valid_until\": \"2026-09-30\", \"BOX-HD-500\": 2.35, \"BOX-ESD-300\": 1.6}",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "get_price_list",
+      "detail": {
+        "arguments": {
+          "price_list_id": "PL-2026-Q4"
+        },
+        "result": "{\"price_list_id\": \"PL-2026-Q4\", \"valid_from\": \"2026-10-01\", \"BOX-HD-500\": 2.05, \"BOX-A4-200\": 0.42, \"BOX-ESD-300\": 1.1, \"BOX-FOOD-250\": 0.65}",
+        "ok": true
+      }
+    },
+    {
+      "kind": "tool",
+      "name": "submit_proposal",
+      "detail": {
+        "category": "pricing_error",
+        "evidence": [
+          "SO-5009 (order date 2026-10-08) was priced from price list PL-2026-Q3, which is valid until 2026-09-30; the order line shows BOX-ESD-300 qty 1000 at 1.60 EUR.",
+          "PL-2026-Q4 (valid from 2026-10-01) lists BOX-ESD-300 at 1.10 EUR, matching the customer's stated price.",
+          "Overcharge = (1.60 - 1.10) x 1000 = 500.00 EUR. Invoice INV-7009 total is 1600.00 EUR, so the credit is 31.25% of the invoice, above the 25% limit for agent-proposed credits (pricing-dispute runbook, step 3).",
+          "Customer C-202 (Saimaa Electronics Oy, key_account) ticket T-1011."
+        ],
+        "likely_cause": "The order was dated after 2026-10-01 but was priced from the expired PL-2026-Q3 list instead of PL-2026-Q4, so the ESD boxes were overcharged by 0.50 EUR each. The corrected credit of 500.00 EUR exceeds 25% of the 1600.00 EUR invoice, so it needs a manager's decision rather than an agent proposal.",
+        "actions": [
+          {
+            "type": "no_action",
+            "order_id": "SO-5009",
+            "reason": "Overcharge confirmed: wrong price list (PL-2026-Q3 expired 2026-09-30 used instead of PL-2026-Q4). Correct credit would be 500.00 EUR, which is 31.25% of INV-7009 (1600.00 EUR), above the 25% agent limit. Escalate to a manager for the credit decision. No credit proposed.",
+            "amount_eur": null,
+            "new_address": null
+          }
+        ],
+        "customer_reply": "Thank you for your message about invoice INV-7009 for order SO-5009. We have checked the order. It was priced from our previous price list, which expired on 30 September 2026, instead of the current list that applies to orders from 1 October 2026. The current list price for ESD boxes (BOX-ESD-300) is 1.10 EUR, so the 1.60 EUR charged was too high. Because the correction is above the amount our support team can approve, a manager will review invoice INV-7009 and decide on the credit. We will let you know the outcome as soon as the review is complete.",
+        "confidence": "high"
+      }
+    }
+  ],
+  "redactions": [
+    "[EMAIL_1]",
+    "[PHONE_1]"
+  ],
+  "error": null,
+  "usage": [
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 4,
+      "output_tokens": 173,
+      "cache_write_tokens": 2251,
+      "cache_read_tokens": 0,
+      "seconds": 2.115
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 2,
+      "output_tokens": 179,
+      "cache_write_tokens": 1078,
+      "cache_read_tokens": 2251,
+      "seconds": 1.393
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 2,
+      "output_tokens": 1084,
+      "cache_write_tokens": 399,
+      "cache_read_tokens": 3329,
+      "seconds": 4.557
+    }
+  ],
+  "usage_summary": {
+    "calls": 3,
+    "models": [
+      "claude-haiku-5-5"
+    ],
+    "input_tokens": 9316,
+    "cached_input_tokens": 5580,
+    "output_tokens": 1436,
+    "model_seconds": 8.07,
+    "cost_usd": 0.001241
+  },
+  "seconds": 8.08,
+  "as_of": "2026-11-23"
+}

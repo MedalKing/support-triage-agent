@@ -22,4 +22,4 @@ def test_report_is_written(monkeypatch, tmp_path):
     out = tmp_path / "report.json"
     code = anyio.run(run_evals.main, "auto", str(out))
     report = json.loads(out.read_text(encoding="utf-8"))
-    assert code == 1 and report["total"] == 9 and report["escalated"] == 0  # one fixed answer can't pass all
+    assert code == 1 and report["total"] == 11 and report["escalated"] == 0  # one fixed answer can't pass all

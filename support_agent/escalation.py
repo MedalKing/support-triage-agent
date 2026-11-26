@@ -10,7 +10,9 @@ The signals are things code can check, not the model's say-so alone:
 - the model rated its own confidence below high,
 - the category is "other" (no runbook fits),
 - no actions at all, not even no_action (the model didn't decide anything),
-- no_action sits next to real actions (the model couldn't decide whether to act),
+- no_action on one order next to real actions on another (the model couldn't decide whether to act),
+- a real action on an order the customer didn't mention, by order or invoice number (the typical
+  unrequested credit),
 - the model had to be corrected first: it proposed before looking anything up, put fields on the
   wrong action, or broke the schema more than once. A single schema slip it fixed itself doesn't
   count: in 24 sampled Haiku runs that happened 7 times and every one of those runs passed its eval.
@@ -19,6 +21,7 @@ The signals are things code can check, not the model's say-so alone:
 from __future__ import annotations
 
 import os
+import re
 import time
 from datetime import date
 from typing import Any, Callable, Literal
@@ -40,8 +43,22 @@ CORRECTION_NOTES = {
 SCHEMA_SLIPS_ALLOWED = 1
 
 
-def escalation_reasons(result: TriageResult) -> list[str]:
-    """Why this run should be redone by the stronger model. Empty means the run stands."""
+def mentioned_orders(ticket: dict[str, Any], erp: ERP) -> set[str]:
+    """Orders the customer refers to: by order number, or by the invoice of an order."""
+    text = f"{ticket['subject']} {ticket['body']}"
+    orders = set(re.findall(r"\bSO-\d+\b", text))
+    for invoice in re.findall(r"\bINV-\d+\b", text):
+        order = erp.order_for_invoice(invoice)
+        if order:
+            orders.add(order)
+    return orders
+
+
+def escalation_reasons(result: TriageResult, ticket: dict[str, Any] | None = None,
+                       erp: ERP | None = None) -> list[str]:
+    """Why this run should be redone by the stronger model. Empty means the run stands.
+
+    With the ticket, it also checks that real actions stay on orders the customer referred to."""
     if result.proposal is None:
         error = (result.error or "unknown error").rstrip(".")
         return [f"it gave no usable proposal ({error[0].lower()}{error[1:]})"]
@@ -55,8 +72,19 @@ def escalation_reasons(result: TriageResult) -> list[str]:
     types = {a.type for a in result.proposal.actions}
     if not types:  # not even no_action: the model didn't decide anything
         reasons.append("it proposed no actions at all, not even no_action")
-    if "no_action" in types and len(types) > 1:
+    real = [a for a in result.proposal.actions if a.type != "no_action"]
+    idle = {a.order_id for a in result.proposal.actions if a.type == "no_action"}
+    # A no_action next to real actions on the same order only records a declined part of the
+    # request ("no discount, but we'll chase the carrier"). On another order it contradicts them.
+    if idle and real and idle - {a.order_id for a in real}:
         reasons.append("it proposed taking no action and real actions at the same time")
+    if ticket is not None and erp is not None:
+        mentioned = mentioned_orders(ticket, erp)
+        # Haiku's typical miss: a helpful but unrequested credit on another order of the customer.
+        # When the customer named no order at all, there is nothing to compare against.
+        stray = sorted({a.order_id for a in real} - mentioned) if mentioned else []
+        if stray:
+            reasons.append(f"it proposed actions on {', '.join(stray)}, which the customer didn't mention")
     notes = [s.name for s in result.trace if s.kind == "note"]
     corrected = sorted({CORRECTION_NOTES[n] for n in notes if n in CORRECTION_NOTES})
     schema_slips = notes.count("invalid_proposal")
@@ -86,7 +114,7 @@ async def triage_with_escalation(
     started = time.perf_counter()
     try:
         first = await triage(ticket, first_provider, erp, transport, as_of=as_of)
-        reasons = escalation_reasons(first)
+        reasons = escalation_reasons(first, ticket, erp)
         first_trace, first_inputs, first_usage = first.trace, first.model_inputs, first.usage
     except ProviderError as e:  # e.g. a refusal or max_tokens on the small model
         partial = getattr(e, "partial", None)  # what the first model saw before it failed

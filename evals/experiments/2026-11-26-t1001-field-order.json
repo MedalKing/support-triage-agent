@@ -1,0 +1,51 @@
+{
+  "experiment": "Haiku 5.5 on T-1001, 12 runs per variant: how often tool-call markup leaks into a text field of submit_proposal",
+  "date": "2026-11-26",
+  "ticket": "T-1001",
+  "model": "claude-haiku-5-5",
+  "runs_per_variant": 12,
+  "fields": {
+    "runs_with_leak": "runs where at least one proposal was refused for leaked markup",
+    "leaks": "refused proposals with leaked markup",
+    "other_rejections": "proposals refused for other schema errors",
+    "ended_with_proposal": "runs that ended with an accepted proposal"
+  },
+  "variants": {
+    "baseline (strict, effort medium)": {
+      "runs": 12,
+      "runs_with_leak": 6,
+      "leaks": 6,
+      "other_rejections": 0,
+      "ended_with_proposal": 12
+    },
+    "strict off": {
+      "runs": 12,
+      "runs_with_leak": 0,
+      "leaks": 0,
+      "other_rejections": 13,
+      "ended_with_proposal": 10
+    },
+    "evidence before likely_cause": {
+      "runs": 12,
+      "runs_with_leak": 0,
+      "leaks": 0,
+      "other_rejections": 2,
+      "ended_with_proposal": 12
+    },
+    "effort low": {
+      "runs": 12,
+      "runs_with_leak": 6,
+      "leaks": 8,
+      "other_rejections": 0,
+      "ended_with_proposal": 12
+    },
+    "effort high": {
+      "runs": 12,
+      "runs_with_leak": 4,
+      "leaks": 4,
+      "other_rejections": 0,
+      "ended_with_proposal": 12
+    }
+  },
+  "conclusion": "Field order is the cause: with the long likely_cause string before the evidence list, half the runs leaked; with evidence first, none did. Turning strict tool use off also stops leaks but trades them for many more schema errors. Effort makes no clear difference."
+}
