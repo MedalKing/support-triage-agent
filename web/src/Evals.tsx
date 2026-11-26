@@ -1,26 +1,23 @@
 import { useEffect, useState } from "react";
 import { EvalCase, EvalRun, evalReport, evalRuns } from "./api";
 
-// What each deterministic check means, in a few words.
 const CHECKS: Record<string, string> = {
-  proposal: "gave a proposal",
-  category: "right category",
-  tools: "made the required lookups",
-  looked_up_order: "looked up the right order",
-  required_actions: "proposed the required actions",
-  forbidden_actions: "no forbidden actions",
-  only_allowed_actions: "only allowed actions",
-  credit_amount: "exact credit amount",
-  policy: "passes the policy check",
-  no_pii_to_model: "no personal data to the model",
-  reply_ready: "reply ready to send",
-  working_days: "right number of working days late",
+  proposal: "proposal",
+  category: "category",
+  tools: "lookups",
+  looked_up_order: "order lookup",
+  required_actions: "required actions",
+  forbidden_actions: "forbidden actions",
+  only_allowed_actions: "allowed actions",
+  credit_amount: "credit amount",
+  policy: "policy",
+  no_pii_to_model: "PII",
+  reply_ready: "reply",
+  working_days: "working days",
 };
 
 const money = (v: number | null | undefined, digits = 4) => (v == null ? "–" : `$${v.toFixed(digits)}`);
 
-// Admin and demo only. A production deployment would keep this behind an admin role; the people
-// triaging tickets would not see it.
 export default function Evals({ onBack }: { onBack: () => void }) {
   const [runs, setRuns] = useState<EvalRun[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -48,27 +45,22 @@ export default function Evals({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="admin-page">
-      <div className="admin-banner" role="note">
-        <span className="admin-badge">Admin · demo only</span>
-        <span>
-          Eval results for people assessing this demo. In production this page would sit behind an admin role; the
-          people triaging tickets would never see it.
-        </span>
-        <button className="link small" onClick={onBack}>
-          ← Back to the app
+      <header className="admin-header">
+        <button className="link back-btn" onClick={onBack}>
+          ← Back
         </button>
-      </div>
+        <div className="admin-title">
+          <h1>
+            Evals <span className="tag admin">admin</span>
+          </h1>
+          <span className="muted small">Deterministic checks · Claude API list prices</span>
+        </div>
+      </header>
 
-      <h1>Evals</h1>
-      <p className="lead small-lead">
-        Each run sends all {run?.total ?? 9} sample tickets through the agent and scores the outcome with code, not
-        with another model: category, lookups, allowed actions, exact amounts, policy, and that no personal data reached
-        the model. Prices are Claude API list prices.
-      </p>
       {error && <p className="error">{error}</p>}
 
       <div className="table-wrap">
-        <table className="evals">
+        <table className="evals runs-table">
           <thead>
             <tr>
               <th>Run</th>
@@ -81,24 +73,39 @@ export default function Evals({ onBack }: { onBack: () => void }) {
           </thead>
           <tbody>
             {runs.map((r) => (
-              <tr key={r.id} className={r.id === selected ? "selected" : ""} onClick={() => setSelected(r.id)}>
-                <td>
-                  <button className="link small" onClick={() => setSelected(r.id)}>
-                    {r.label}
-                  </button>
+              <tr
+                key={r.id}
+                className={r.id === selected ? "selected" : ""}
+                onClick={() => setSelected(r.id)}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelected(r.id);
+                  }
+                }}
+              >
+                <td className="run-name" data-label="Run">
+                  <span className="run-label">{r.label}</span>
                   {r.prompt_cache != null && (
                     <span className="tag">{r.prompt_cache ? "cache on" : "cache off"}</span>
                   )}
                 </td>
-                <td className="muted">
+                <td className="muted nowrap" data-label="When">
                   {r.date} {r.time}
                 </td>
-                <td className={r.passed === r.total ? "ok" : "bad"}>
+                <td className={`nowrap ${r.passed === r.total ? "ok" : "bad"}`} data-label="Passed">
                   {r.passed}/{r.total}
                 </td>
-                <td>{r.escalated ?? 0}</td>
-                <td>{money(r.cost_per_ticket)}</td>
-                <td>{r.median_seconds == null ? "–" : `${r.median_seconds} s`}</td>
+                <td className="nowrap" data-label="Escalated">
+                  {r.escalated ?? 0}
+                </td>
+                <td className="nowrap" data-label="Cost">
+                  {money(r.cost_per_ticket)}
+                </td>
+                <td className="nowrap" data-label="Time">
+                  {r.median_seconds == null ? "–" : `${r.median_seconds}\u00A0s`}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -107,25 +114,27 @@ export default function Evals({ onBack }: { onBack: () => void }) {
 
       {run && (
         <section className="card">
-          <h2>
-            {run.label} <span className="muted small">{run.date} {run.time}</span>
-          </h2>
-          <p className="muted small">
-            <a href={`/api/evals/${run.id}`} target="_blank" rel="noreferrer">
-              Raw report (JSON)
-            </a>{" "}
-            · evals/results/{run.id}
-          </p>
+          <div className="card-head">
+            <h2>
+              {run.label}{" "}
+              <span className="muted small">
+                {run.date} {run.time}
+              </span>
+            </h2>
+            <a className="json-link small" href={`/api/evals/${run.id}`} target="_blank" rel="noreferrer">
+              JSON ↗
+            </a>
+          </div>
           {!cases && <p className="muted">Loading…</p>}
           {cases && (
             <div className="table-wrap">
-              <table className="evals">
+              <table className="evals cases-table">
                 <thead>
                   <tr>
                     <th>Ticket</th>
                     <th>Result</th>
                     <th>Proposed</th>
-                    <th>Escalated because</th>
+                    <th>Escalated</th>
                     <th>Cost</th>
                     <th>Time</th>
                   </tr>
@@ -135,24 +144,26 @@ export default function Evals({ onBack }: { onBack: () => void }) {
                     const failed = Object.entries(c.checks ?? {}).filter(([, ok]) => !ok).map(([k]) => CHECKS[k] ?? k);
                     return (
                       <tr key={c.ticket}>
-                        <td>{c.ticket}</td>
-                        <td>
+                        <td className="nowrap ticket-col" data-label="Ticket">
+                          <strong>{c.ticket}</strong>
+                        </td>
+                        <td className="result-col" data-label="Result">
                           {c.passed ? (
-                            <span className="ok">✓ pass</span>
+                            <span className="ok nowrap">✓ pass</span>
                           ) : (
                             <>
-                              <span className="bad">✗ fail</span>
-                              <div className="muted small">missed: {failed.join(", ") || c.error}</div>
+                              <span className="bad nowrap">✗ fail</span>
+                              <div className="muted small">{failed.join(", ") || c.error}</div>
                             </>
                           )}
                         </td>
-                        <td className="small">
+                        <td className="small proposed-col" data-label="Proposed">
                           {c.proposed ? (
                             <>
-                              <code>{c.proposed.category}</code>
+                              <code className="action-type">{c.proposed.category}</code>
                               <div className="muted">
                                 {c.proposed.actions
-                                  .map((a) => `${a.type}${a.amount_eur != null ? ` ${a.amount_eur.toFixed(2)} €` : ""}`)
+                                  .map((a) => `${a.type}${a.amount_eur != null ? ` ${a.amount_eur.toFixed(2)}\u00A0€` : ""}`)
                                   .join(", ") || "no actions"}
                               </div>
                             </>
@@ -160,9 +171,15 @@ export default function Evals({ onBack }: { onBack: () => void }) {
                             <span className="muted">{c.error ?? "no proposal"}</span>
                           )}
                         </td>
-                        <td className="small muted">{c.escalation ? c.escalation.reasons.join("; ") : "–"}</td>
-                        <td className="small">{money(c.usage?.cost_usd)}</td>
-                        <td className="small">{c.seconds == null ? "–" : `${c.seconds.toFixed(0)} s`}</td>
+                        <td className="small muted esc-col" data-label="Escalated">
+                          {c.escalation ? c.escalation.reasons.join("; ") : "–"}
+                        </td>
+                        <td className="small nowrap" data-label="Cost">
+                          {money(c.usage?.cost_usd)}
+                        </td>
+                        <td className="small nowrap" data-label="Time">
+                          {c.seconds == null ? "–" : `${c.seconds.toFixed(0)}\u00A0s`}
+                        </td>
                       </tr>
                     );
                   })}
