@@ -416,7 +416,13 @@ export default function App() {
 
       <main>
         <div className="mobile-nav">
-          <button className="link" onClick={() => setMobileList(true)}>
+          <button
+            className="link"
+            onClick={() => {
+              setMobileList(true);
+              window.scrollTo(0, 0);
+            }}
+          >
             ‹ {view === "inbox" ? `Inbox (${inbox.length})` : `Archive (${archive.length})`}
           </button>
           <button className="link small muted" onClick={goHome}>
