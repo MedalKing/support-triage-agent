@@ -5,7 +5,7 @@ An AI agent that triages customer support emails for a simulated packaging compa
 **Core boundary:** the model only has read-only tools scoped to the sender. Deterministic code enforces policy, and a human approves or declines every action.
 
 **Live demo:** https://support-triage-demo.calmdesert-2585d0f9.swedencentral.azurecontainerapps.io/  
-Click **Start the 3-minute tour** to replay three recorded runs (instant, no login). Live runs require the access code from my job application. Cold starts take a few seconds.
+Click **Start the 3-minute tour** for three steps through four recorded runs (instant, no login), or skip it and work the inbox. Live runs require the access code from my job application. Cold starts take a few seconds.
 
 ![Tour: prompt injection, approving a credit, policy block on a second credit, and model escalation](docs/images/tour.gif)
 
@@ -15,7 +15,7 @@ Click **Start the 3-minute tour** to replay three recorded runs (instant, no log
 2. **Policy enforced in code (`T-1003` → `T-1008`):** Approve the 60 € credit on `T-1003`, then open `T-1008` (a second email about the same invoice). Code blocks the second credit as requiring manager approval, holds the draft reply, and refuses the IBAN supplied in the email. ([Screenshot](docs/images/policy-block.png))
 3. **Automatic escalation (`T-1006`):** Asked about an order number that doesn't exist, Claude Haiku proposed "no action" and, alongside it, an unrequested 60 € credit on a different order. Code flags the contradiction, and Claude Opus redoes the ticket from scratch: it only asks the customer to confirm the order number. Both attempts are visible in the trace.
 
-Each visitor gets an isolated in-memory session; **Start over** resets it.
+Emails wait in an **inbox** until every action on them is approved or declined (or, with nothing to approve, marked done); then they move to the **archive**. The goal is an empty inbox. Each visitor gets an isolated in-memory session; **Reset demo** at the bottom of the sidebar resets it.
 
 ## Architecture
 
@@ -39,7 +39,7 @@ flowchart LR
 
 - **Read-only, customer-scoped MCP tools (`support_agent/erp_server.py`):** No write tools exist for the model. Another customer's order looks identical to a missing one.
 - **PII redaction (`support_agent/redact.py`):** Emails, phone numbers, IBANs, and Finnish identity codes are replaced with placeholders (`[EMAIL_1]`, etc.) in both incoming emails and tool outputs. Replies containing any placeholder are rejected back to the model.
-- **Policy in code, not prompts (`support_agent/proposal.py`):** Enforced on both proposal submission and approval — blocks duplicate credits on the same invoice without a manager, credits ≥ 25% of invoice value, out-of-stock reships, post-pickup address changes, redirects with carriers that don't offer them, and cross-customer actions.
+- **Policy in code, not prompts (`support_agent/proposal.py`):** Enforced on both proposal submission and approval — blocks duplicate credits on the same invoice without a manager, credits above 25% of the invoice, out-of-stock reships, post-pickup address changes, redirects with carriers that don't offer them, and cross-customer actions.
 - **Grounded structured output:** Proposals require at least one successful data lookup and non-empty evidence. Date math (`working_days_late`) is computed in code. Runbooks are retrieved with BM25 (`support_agent/retrieval.py`).
 - **Haiku-first escalation (`support_agent/escalation.py`):** Default `auto` mode runs Claude Haiku 5.5 first and escalates to Claude Opus 5.5 on checkable signals: no usable proposal, a policy violation, low/medium confidence, no fitting category, empty or contradictory actions, or corrections that point at a weak investigation (proposing before any lookup, fields on the wrong action, repeated schema errors). A single schema slip the model fixes itself doesn't count: in 24 sampled Haiku runs it happened 7 times and every one of those runs passed.
 - **Safe human approval (`support_agent/api.py`):** Reviewers must explicitly tick impactful actions or decline with a reason. Approvals are bound to a specific proposal ID, validated atomically, and idempotent.

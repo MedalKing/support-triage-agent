@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  approve, AuditEntry, auditLog, Config, decline, getConfig, listTickets, recorded, reset, triage, Ticket, TraceStep, TriageResult,
+  approve, AuditEntry, auditLog, Config, decline, getConfig, listTickets, markDone, moveToInbox, recorded, reset, triage, Ticket,
+  TraceStep, TriageResult,
 } from "./api";
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -22,7 +23,8 @@ const SCENARIOS: Record<string, string> = {
   "T-1009": "redirect the carrier can't do",
 };
 
-type TourStep = { ticket: string; title: string; text: string };
+// `also`: other emails that belong to the same step, such as the second email of step 2.
+type TourStep = { ticket: string; title: string; text: string; also?: string[] };
 
 const TOUR: TourStep[] = [
   {
@@ -32,6 +34,7 @@ const TOUR: TourStep[] = [
   },
   {
     ticket: "T-1003",
+    also: ["T-1008"],
     title: "Policy runs in code, not in the prompt",
     text: "Tick the 60 € credit and press Approve (nothing real happens; the order system is simulated). Then open T-1008, a second email about the same invoice: code blocks the second credit and asks for a manager, whatever the model says.",
   },
@@ -88,6 +91,10 @@ export default function App() {
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
+  const [view, setView] = useState<"inbox" | "archive">("inbox");
+  const [query, setQuery] = useState("");
+  // The tour shows only for visitors who started it; anyone else just works the inbox.
+  const [touring, setTouring] = useState(false);
   // The ticket on screen. A triage answer for a ticket the reviewer has left is dropped.
   const current = useRef<string | null>(null);
 
@@ -101,6 +108,8 @@ export default function App() {
       .catch((e) => setMessage(String(e)));
     auditLog().then(setAudit).catch(() => {});
   }, []);
+
+  const refreshTickets = () => listTickets().then(setTickets).catch((e) => setMessage(String(e)));
 
   function saveCode(code: string) {
     setAccessCode(code);
@@ -132,6 +141,7 @@ export default function App() {
     const ticketId = ticket.id;
     try {
       const r = live ? await triage(ticketId, provider, accessCode) : await recorded(ticketId);
+      if (live) refreshTickets(); // a new proposal puts the email back in the inbox, even if the reviewer moved on
       if (current.current !== ticketId) return;
       setResult(r);
       // Pre-tick only actions that change nothing for the customer and aren't decided yet.
@@ -153,11 +163,12 @@ export default function App() {
     setBusy(true);
     try {
       const r = await approve(ticketId, result.proposal_id, checked);
-      setAudit(await auditLog());
+      // The lists change even if the reviewer has already opened another email.
+      await Promise.all([auditLog().then(setAudit), refreshTickets()]);
       if (current.current !== ticketId) return;
       setResult({ ...result, applied: [...result.applied, ...checked] });
       setChecked([]);
-      setMessage(`Approved ${r.applied.length} action(s); see the audit log.`);
+      setMessage(`Approved ${r.applied.length} action(s). Every decision is in the audit log, under Archive.`);
     } catch (e) {
       if (current.current === ticketId) setMessage(String(e));
     } finally {
@@ -171,7 +182,7 @@ export default function App() {
     setBusy(true);
     try {
       const r = await decline(ticketId, result.proposal_id, checked, reason.trim());
-      setAudit(await auditLog());
+      await Promise.all([auditLog().then(setAudit), refreshTickets()]);
       if (current.current !== ticketId) return;
       const declined = { ...result.declined };
       for (const i of checked) declined[String(i)] = reason.trim();
@@ -179,7 +190,33 @@ export default function App() {
       setChecked([]);
       setDeclining(false);
       setReason("");
-      setMessage(`Declined ${r.declined.length} action(s); the reason is in the audit log.`);
+      setMessage(`Declined ${r.declined.length} action(s). The reason is in the audit log, under Archive.`);
+    } catch (e) {
+      if (current.current === ticketId) setMessage(String(e));
+    } finally {
+      if (current.current === ticketId) setBusy(false);
+    }
+  }
+
+  function startTour(id: string) {
+    setTouring(true);
+    open(id);
+  }
+
+  function skipTour() {
+    setTouring(false);
+    setView("inbox");
+    open((inbox[0] ?? tickets[0]).id);
+  }
+
+  async function setDone(done: boolean) {
+    if (!selected || busy) return;
+    const ticketId = selected.id;
+    setBusy(true);
+    try {
+      await (done ? markDone(ticketId) : moveToInbox(ticketId));
+      await refreshTickets();
+      if (current.current === ticketId) setMessage(null);
     } catch (e) {
       if (current.current === ticketId) setMessage(String(e));
     } finally {
@@ -196,24 +233,53 @@ export default function App() {
     setBusy(false);
   }
 
+  // Back to how a new visitor finds the demo: every email in the inbox, nothing decided, no tour.
   async function startOver() {
+    if (changed && !window.confirm("Reset the demo? Your approvals, declines and archive are cleared.")) return;
     try {
       await reset();
       setAudit([]);
+      await refreshTickets();
+      setView("inbox");
+      setQuery("");
+      setTouring(false);
       goHome();
     } catch (e) {
       setMessage(`Could not start over: ${e}`);
     }
   }
 
+  const inbox = tickets.filter((t) => !t.archived);
+  const archive = tickets.filter((t) => t.archived);
+  const changed = audit.length > 0 || archive.length > 0;
+  const ready = tickets.length > 0 && config !== null; // opening an email needs both
+  const q = query.trim().toLowerCase();
+  const shown = (view === "inbox" ? inbox : archive).filter(
+    (t) => !q || [t.id, t.subject, t.body, t.customer_name, SCENARIOS[t.id] ?? ""].some((f) => f.toLowerCase().includes(q)),
+  );
+  const isArchived = !!selected && archive.some((t) => t.id === selected.id);
+  // The next email still waiting, after this one in the list, wrapping around.
+  const at = tickets.findIndex((t) => t.id === selected?.id);
+  const nextInInbox = [...tickets.slice(at + 1), ...tickets.slice(0, Math.max(at, 0))].find((t) => !t.archived);
+  const undecided = result?.proposal?.actions.filter(
+    (a, i) => a.type !== "no_action" && !result.applied.includes(i) && !(String(i) in result.declined),
+  ).length ?? 0;
+  // What happened to an archived email, from the audit log.
+  const outcome = (id: string) => {
+    const mine = audit.filter((e) => e.ticket_id === id);
+    const n = (d: string) => mine.filter((e) => e.decision === d).length;
+    const parts = [n("approved") && `${n("approved")} approved`, n("declined") && `${n("declined")} declined`].filter(Boolean);
+    return parts.length ? parts.join(" · ") : "nothing to approve";
+  };
   const blocked = (result?.policy_violations.length ?? 0) > 0;
   const actionable = !!result?.proposal?.actions.some((a) => a.type !== "no_action");
   const escalation = escalationStep(config);
   const tour = [...TOUR, ...(escalation ? [escalation] : [])];
   const creditApproved = !!result?.proposal?.actions.some((a, i) => a.type === "issue_credit" && result.applied.includes(i));
   // The next step of the tour, offered where the visitor is.
-  const next =
-    selected?.id === "T-1007" && result?.proposal
+  const next = !touring
+    ? null
+    : selected?.id === "T-1007" && result?.proposal
       ? { id: "T-1003", label: "Next: step 2, a credit and then a second one →" }
       : selected?.id === "T-1003" && result?.proposal
         ? creditApproved
@@ -233,82 +299,139 @@ export default function App() {
           It reads customer emails for a made-up packaging company, looks up the order and proposes what to do. It can't
           change anything itself: you approve each action, and rules in code block what's out of policy.
         </p>
-        <button className="primary" onClick={() => open(tour[0].ticket)} disabled={!tickets.length}>
-          Start the 3-minute tour →
-        </button>
+        <div className="row start">
+          <button className="primary" onClick={() => startTour(tour[0].ticket)} disabled={!ready}>
+            Start the 3-minute tour →
+          </button>
+          <button className="secondary big" onClick={skipTour} disabled={!ready}>
+            Skip the tour, open the inbox
+          </button>
+        </div>
         <ol className="steps">
           {tour.map((step) => (
             <li key={step.ticket}>
-              <button className="link" onClick={() => open(step.ticket)}>
+              <button className="link" onClick={() => startTour(step.ticket)} disabled={!ready}>
                 {step.title}
               </button>
             </li>
           ))}
         </ol>
         <p className="muted small">
-          Recorded runs, instant and free. <button className="link small" onClick={() => open(tickets[0]?.id)}>Browse all {tickets.length || 9}
-          emails</button>
+          {inbox.length} {inbox.length === 1 ? "email" : "emails"} waiting, all with recorded runs: instant and free.
         </p>
+        {changed && (
+          <p className="muted small">
+            You have already approved, declined or archived something.{" "}
+            <button className="link small" onClick={startOver}>Reset demo</button>
+          </p>
+        )}
         {message && <p className="error">{message}</p>}
       </div>
     );
   }
 
-  const tourIndex = tour.findIndex((s) => s.ticket === selected.id);
+  const tourIndex = touring ? tour.findIndex((s) => s.ticket === selected.id || s.also?.includes(selected.id)) : -1;
 
   return (
     <div className="layout">
       <aside>
         <h1>
-          <button className="home" onClick={goHome}>
+          <button className="home" onClick={goHome} title="Back to the start page">
             Support triage agent
           </button>
         </h1>
-        {tickets.map((t) => (
-          <button key={t.id} className={selected.id === t.id ? "ticket active" : "ticket"} onClick={() => open(t.id)}>
-            {t.subject}
-            <span className="id">
-              {t.id} · {SCENARIOS[t.id]}
-              {config?.escalated[t.id] && " · escalated"}
-            </span>
-          </button>
-        ))}
-
-        {audit.length > 0 && (
-          <section className="audit">
-            <h2>Audit log</h2>
-            {audit.map((e, i) => (
-              <div key={i} className="small entry">
-                {e.decision === "declined" ? "Declined " : "Approved "}
-                <strong>{e.type}</strong> on {e.order_id}
-                {e.amount_eur != null && <> · {e.amount_eur.toFixed(2)} €</>} <span className="muted">({e.ticket_id})</span>
-                {e.decline_reason && <div className="muted">“{e.decline_reason}”</div>}
-              </div>
-            ))}
-            <p className="muted small">The order system is simulated: actions are logged, only address changes edit the order.</p>
-            <button className="secondary" onClick={startOver} disabled={busy}>
-              Start over
-            </button>
-          </section>
+        <label className="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-4-4" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label={view === "inbox" ? "Search the inbox" : "Search the archive"}
+          />
+        </label>
+        {view === "archive" && (
+          <div className="listhead">
+            <button className="link small" onClick={() => setView("inbox")}>‹ Inbox</button>
+            <span>Archive</span>
+          </div>
         )}
+
+        <div className="list">
+          {shown.map((t) => (
+            <button key={t.id} className={selected.id === t.id ? "ticket active" : "ticket"} onClick={() => open(t.id)}>
+              <span className="meta">
+                <Badge id={t.customer_id} name={t.customer_name} />
+                <span className="who">{t.customer_name}</span>
+                <span className="when">{when(t.received)}</span>
+              </span>
+              <span className="subject">{t.subject}</span>
+              <span className="meta">
+                <span className="who">
+                  {t.id} · {view === "inbox" ? SCENARIOS[t.id] : outcome(t.id)}
+                </span>
+                {view === "inbox" && config?.escalated[t.id] && <span className="flag">escalated</span>}
+              </span>
+            </button>
+          ))}
+          {query && shown.length === 0 && <p className="empty muted small">No emails match “{query}”.</p>}
+          {!query && view === "inbox" && inbox.length === 0 && (
+            <p className="empty">
+              <strong>Inbox zero.</strong> Every email is handled.
+            </p>
+          )}
+          {!query && view === "archive" && archive.length === 0 && (
+            <p className="empty muted small">
+              Nothing here yet. An email moves here once every action on it is approved or declined.
+            </p>
+          )}
+
+          {view === "archive" && (audit.length > 0 || archive.length > 0) && (
+            <section className="audit">
+              {audit.length > 0 && <h2>Audit log</h2>}
+              {audit.map((e, i) => (
+                <div key={i} className="small entry">
+                  {e.decision === "declined" ? "Declined " : "Approved "}
+                  <strong>{e.type}</strong> on {e.order_id}
+                  {e.amount_eur != null && <> · {e.amount_eur.toFixed(2)} €</>} <span className="muted">({e.ticket_id})</span>
+                  {e.decline_reason && <div className="muted">“{e.decline_reason}”</div>}
+                </div>
+              ))}
+              <p className="muted small">The order system is simulated: actions are logged, only address changes edit the order.</p>
+            </section>
+          )}
+        </div>
+
+        {view === "inbox" && (
+          <button className="archive-link" onClick={() => setView("archive")}>
+            <span>Archive</span>
+            <span className="muted">{archive.length} ›</span>
+          </button>
+        )}
+        <button className="link small reset" onClick={startOver} disabled={busy}>
+          Reset demo
+        </button>
       </aside>
 
       <main>
         {selected && (
           <>
-            <div className="tourbar">
-              <button className="link" onClick={goHome}>
-                ← Start
-              </button>
-              {tourIndex >= 0 && (
+            {tourIndex >= 0 && (
+              <div className="tourbar">
                 <p>
                   <strong>
                     Tour · step {tourIndex + 1} of {tour.length}: {tour[tourIndex].title}.
                   </strong>{" "}
-                  {tour[tourIndex].text}
+                  {tour[tourIndex].text}{" "}
+                  <button className="link small" onClick={() => setTouring(false)}>
+                    End tour
+                  </button>
                 </p>
-              )}
-            </div>
+              </div>
+            )}
             <section className="card">
               <h2>{selected.subject}</h2>
               <p className="muted">
@@ -382,7 +505,7 @@ export default function App() {
                   <p className="muted small">
                     Nothing happens until you press Approve. Free requests, such as asking the carrier for news, are
                     ticked for you. Actions that cost money or change the order are left for you to tick, with what to
-                    check.
+                    check. Once every action is approved or declined, the email moves to the archive.
                   </p>
                 )}
                 {blocked && (
@@ -422,7 +545,24 @@ export default function App() {
                     {a.approval_reason && <div className="why">What to check: {a.approval_reason}</div>}
                   </label>
                 ))}
-                {actionable && !declining && (
+                {isArchived ? (
+                  <div className="done">
+                    <strong>Done.</strong>{" "}
+                    {nextInInbox ? "This email is in the archive." : "Inbox zero: every email is handled."}
+                    <div className="row">
+                      {nextInInbox && !next && (
+                        <button onClick={() => open(nextInInbox.id)}>Next in inbox: {nextInInbox.id} →</button>
+                      )}
+                      <button className="secondary" onClick={() => setDone(false)}>Move back to inbox</button>
+                    </div>
+                  </div>
+                ) : undecided === 0 ? (
+                  <div className="row">
+                    <button onClick={() => setDone(true)} disabled={busy}>Mark done</button>
+                    <span className="muted small hint">Nothing left to approve. Marking it done clears it from the inbox.</span>
+                  </div>
+                ) : null}
+                {actionable && !declining && undecided > 0 && (
                   <div className="row">
                     <button onClick={submit} disabled={blocked || busy || checked.length === 0}>
                       Approve selected
@@ -492,6 +632,26 @@ export default function App() {
         )}
       </main>
     </div>
+  );
+}
+
+// The demo's "today" is Monday 2026-11-23: today's emails show the time, older ones the weekday.
+const DEMO_TODAY = "2026-11-23";
+function when(received: string): string {
+  const [day, time] = received.split("T");
+  if (day === DEMO_TODAY) return time;
+  return new Date(`${day}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short" });
+}
+
+// A small square with the customer's initials, its colour fixed per customer.
+function Badge({ id, name }: { id: string; name: string }) {
+  const words = name.split(/\s+/).filter((w) => !/^(ltd|oy|ab|oyj|inc)$/i.test(w));
+  const initials = words.slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const hue = [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+  return (
+    <span className="badge" style={{ background: `hsl(${hue} 45% 42%)` }} aria-hidden="true">
+      {initials}
+    </span>
   );
 }
 

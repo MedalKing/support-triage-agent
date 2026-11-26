@@ -56,6 +56,8 @@ MAX_SESSIONS = 1000  # oldest sessions are dropped first, so memory stays bounde
 class Session:
     erp: ERP = field(default_factory=ERP)
     results: dict[str, TriageResult] = field(default_factory=dict)
+    # Emails the reviewer is done with. The inbox is every other email; the goal is an empty one.
+    archived: set[str] = field(default_factory=set)
 
 
 sessions: OrderedDict[str, Session] = OrderedDict()
@@ -154,7 +156,26 @@ def config() -> dict[str, Any]:
 
 @app.get("/api/tickets")
 def list_tickets(s: Session = Depends(session)) -> list[dict[str, Any]]:
-    return list(tickets.values())
+    # Newest first, like a mail inbox. The customer's company name is for the reviewer only;
+    # the model gets the ticket text and the customer id, never this list.
+    rows = [{**t, "customer_name": s.erp.customer_name(t["customer_id"]) or t["customer_id"],
+             "archived": t["id"] in s.archived} for t in tickets.values()]
+    return sorted(rows, key=lambda t: t.get("received", ""), reverse=True)
+
+
+def undecided(result: TriageResult | None) -> list[int]:
+    """Actions on this proposal that still wait for an approve or a decline."""
+    if result is None or result.proposal is None:
+        return []
+    return [i for i, a in enumerate(result.proposal.actions)
+            if a.type != "no_action" and i not in result.applied and i not in result.declined]
+
+
+def archive_if_decided(ticket_id: str, s: Session) -> bool:
+    """Once every action on an email is decided, the email leaves the inbox by itself."""
+    if not undecided(s.results.get(ticket_id)):
+        s.archived.add(ticket_id)
+    return ticket_id in s.archived
 
 
 @app.post("/api/tickets/{ticket_id}/triage")
@@ -179,6 +200,7 @@ async def live_triage(ticket_id: str, request: Request, provider: str | None = N
     if s.erp is not erp:  # the visitor pressed Start over while the run was going
         raise HTTPException(409, "The demo was reset while this ran. Run it again.")
     s.results[ticket_id] = result
+    s.archived.discard(ticket_id)  # a new proposal is a new decision to make
     return result.to_dict()
 
 
@@ -190,9 +212,10 @@ def recorded_triage(ticket_id: str, s: Session = Depends(session)) -> dict[str, 
     if ticket is None or not path.exists():
         raise HTTPException(404, "no recorded run for this ticket")
     result = s.results.get(ticket_id)
-    if result is not None and result.recorded and result.proposal is not None:
-        # Coming back to a ticket keeps what was approved on it; only the policy check is
-        # redone, since approvals on other tickets may have changed the answer.
+    if result is not None and result.proposal is not None:
+        # Coming back to a ticket keeps the proposal the reviewer worked on, recorded or live,
+        # and what was decided on it; only the policy check is redone, since approvals on
+        # other tickets may have changed the answer.
         result.policy_violations = check_policy(result.proposal, ticket["customer_id"], s.erp, result.proposal_id)
         return result.to_dict()
     result = load_recorded(ticket, json.loads(path.read_text(encoding="utf-8")), s.erp)
@@ -279,7 +302,7 @@ async def approve(ticket_id: str, approval: Approval, s: Session = Depends(sessi
         applied.append(s.erp.apply_action({"ticket_id": ticket_id, "proposal_id": result.proposal_id, **action},
                                           approval.approved_by))
         result.applied.add(i)
-    return {"applied": applied}
+    return {"applied": applied, "archived": archive_if_decided(ticket_id, s)}
 
 
 # Declining works on blocked proposals too: saying no to an out-of-policy action is a decision.
@@ -292,7 +315,29 @@ async def decline(ticket_id: str, choice: Decline, s: Session = Depends(session)
         declined.append(s.erp.record_decline({"ticket_id": ticket_id, "proposal_id": result.proposal_id, **action},
                                              choice.declined_by, choice.reason))
         result.declined[i] = choice.reason
-    return {"declined": declined}
+    return {"declined": declined, "archived": archive_if_decided(ticket_id, s)}
+
+
+@app.post("/api/tickets/{ticket_id}/archive")
+def archive(ticket_id: str, s: Session = Depends(session)) -> dict[str, bool]:
+    """Mark an email done by hand, for proposals with nothing to approve. Open actions have
+    to be approved or declined first, so nothing is left undecided by archiving."""
+    if ticket_id not in tickets:
+        raise HTTPException(404, "ticket not found")
+    if ticket_id not in s.results:
+        raise HTTPException(409, "triage the ticket first")
+    if undecided(s.results[ticket_id]):
+        raise HTTPException(409, "approve or decline every action first")
+    s.archived.add(ticket_id)
+    return {"archived": True}
+
+
+@app.post("/api/tickets/{ticket_id}/unarchive")
+def unarchive(ticket_id: str, s: Session = Depends(session)) -> dict[str, bool]:
+    if ticket_id not in tickets:
+        raise HTTPException(404, "ticket not found")
+    s.archived.discard(ticket_id)
+    return {"archived": False}
 
 
 @app.get("/api/audit")
@@ -302,8 +347,9 @@ def audit(s: Session = Depends(session)) -> list[dict[str, Any]]:
 
 @app.post("/api/reset")
 def reset(s: Session = Depends(session)) -> dict[str, str]:
-    """Start this visitor's demo over: a fresh copy of the sample ERP, no proposals, empty log."""
-    s.erp, s.results = ERP(), {}
+    """Start this visitor's demo over: a fresh copy of the sample ERP, no proposals, empty log,
+    every email back in the inbox."""
+    s.erp, s.results, s.archived = ERP(), {}, set()
     return {"status": "reset"}
 
 
