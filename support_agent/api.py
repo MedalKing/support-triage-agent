@@ -123,6 +123,16 @@ def check_access_code(code: str | None) -> None:
 
 # --- endpoints -----------------------------------------------------------------------
 
+def real_actions(proposal: dict[str, Any] | None) -> list[tuple[Any, ...]]:
+    """What a proposal would actually do, for comparing two attempts. No proposal and a
+    no_action do the same thing (nothing), and 60 from raw tool input equals 60.0."""
+    if not proposal:
+        return []
+    return sorted((a["type"], a["order_id"], None if a.get("amount_eur") is None else float(a["amount_eur"]),
+                   a.get("new_address") or None)
+                  for a in proposal["actions"] if a["type"] != "no_action")
+
+
 def recorded_escalations() -> dict[str, dict[str, Any]]:
     """Which recorded runs were redone by the stronger model, why, and whether the second
     model proposed different actions. The page's tour uses it, so it always points at a run
@@ -136,11 +146,8 @@ def recorded_escalations() -> dict[str, dict[str, Any]]:
         before = saved["trace"][:names.index("escalated")] if "escalated" in names else []
         first = next((s["detail"] for s in before if s["name"] == "submit_proposal"), None)
         final = saved["proposal"]
-        # Only real actions count: adding or dropping a no_action changes nothing that happens.
-        actions = lambda p: sorted(json.dumps([a["type"], a["order_id"], a["amount_eur"], a["new_address"]])  # noqa: E731
-                                   for a in p["actions"] if a["type"] != "no_action") if p else None
         out[path.stem] = {"reasons": saved["escalation"]["reasons"],
-                          "changed": actions(first) != actions(final)}
+                          "changed": real_actions(first) != real_actions(final)}
     return out
 
 

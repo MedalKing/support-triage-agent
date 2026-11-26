@@ -205,8 +205,22 @@ def test_leaked_tool_markup_and_filler_evidence_are_refused(overrides):
         Proposal.model_validate(proposal(**overrides))
 
 
-def test_ordinary_angle_brackets_are_fine():
-    Proposal.model_validate(proposal(likely_cause="Delay < 5 working days, so no credit; > 10 needs a manager."))
+@pytest.mark.parametrize("text", [
+    "Delay < 5 working days, so no credit; > 10 needs a manager.",
+    "delay <threshold -> no credit",
+    "a <5 days> window",
+])
+def test_ordinary_angle_brackets_are_fine(text):
+    Proposal.model_validate(proposal(likely_cause=text))
+
+
+@pytest.mark.parametrize("field, value", [("new_address", "Satamatie 2, Kemi</new_address>"),
+                                          ("order_id", 'SO-5001</order_id> <parameter name="reason">')])
+def test_markup_in_an_action_field_is_refused(field, value):
+    act = {"type": "contact_carrier", "order_id": "SO-5001", "reason": "Ask for a redirect",
+           "amount_eur": None, "new_address": "Satamatie 2, Kemi", field: value}
+    with pytest.raises(ValueError):
+        Proposal.model_validate(proposal(actions=[act]))
 
 
 def test_a_leaked_proposal_goes_back_to_the_model():

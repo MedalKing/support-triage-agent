@@ -36,9 +36,9 @@ MAX_AGENT_CREDIT_SHARE = 0.25  # larger credits are out of scope for the agent
 REDIRECT_CARRIERS = {"NordFreight"}
 
 
-# Tags such as </likely_cause> or <parameter name="evidence">. Letters right after "<" so that
-# "x < 5" in ordinary text doesn't match.
-MARKUP = re.compile(r"</?[A-Za-z_][\w:-]*(?:\s[^<>]*)?>")
+# Tags such as </likely_cause> or <parameter name="evidence">: a name right after "<", then only
+# name="value" attributes. "x < 5", "delay <threshold -> no credit" and "<5 days>" don't match.
+MARKUP = re.compile(r'</?[A-Za-z_][\w:-]*(?:\s+[\w:-]+="[^"]*")*\s*/?>')
 MIN_EVIDENCE_CHARS = 8  # "x" is filler, not evidence
 
 
@@ -67,7 +67,9 @@ class Proposal(BaseModel):
         # empty or filled with filler. Each field must hold only its own text.
         fields = {"likely_cause": self.likely_cause, "customer_reply": self.customer_reply,
                   **{f"evidence[{i}]": e for i, e in enumerate(self.evidence)},
-                  **{f"actions[{i}].reason": a.reason for i, a in enumerate(self.actions)}}
+                  **{f"actions[{i}].{name}": value for i, a in enumerate(self.actions)
+                     for name, value in (("reason", a.reason), ("order_id", a.order_id),
+                                         ("new_address", a.new_address or ""))}}
         leaked = [name for name, text in fields.items() if MARKUP.search(text)]
         if leaked:
             raise ValueError(f"tool-call markup inside {', '.join(leaked)}; put each value in its own field, "
