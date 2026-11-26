@@ -5,7 +5,7 @@ An AI agent that triages customer support emails for a simulated packaging compa
 **Core boundary:** the model only has read-only tools scoped to the sender. Deterministic code enforces policy, and a human approves or declines every action.
 
 **Live demo:** https://support-triage-demo.calmdesert-2585d0f9.swedencentral.azurecontainerapps.io/  
-Click **Start the 3-minute tour** for three steps through four recorded runs (instant, no login), or skip it and work the inbox. Live runs require the access code from my job application. Cold starts take a few seconds.
+Click **Start tour** for three steps through four recorded runs (instant, no login), or open the inbox directly. Live runs require the access code from my job application. Cold starts take a few seconds.
 
 ![Tour: prompt injection, approving a credit, policy block on a second credit, and model escalation](docs/images/tour.gif)
 
@@ -15,7 +15,7 @@ Click **Start the 3-minute tour** for three steps through four recorded runs (in
 2. **Policy enforced in code (`T-1003` → `T-1008`):** Approve the 60 € credit on `T-1003`, then open `T-1008` (a second email about the same invoice). Code blocks the second credit as requiring manager approval, holds the draft reply, and refuses the IBAN supplied in the email. ([Screenshot](docs/images/policy-block.png))
 3. **Automatic escalation (`T-1006`):** Asked about an order number that doesn't exist, Claude Haiku proposed "no action" and, alongside it, an unrequested 60 € credit on a different order. Code flags the contradiction, and Claude Opus redoes the ticket from scratch: it only asks the customer to confirm the order number. Both attempts are visible in the trace.
 
-Emails wait in an **inbox** until every action on them is approved or declined (or, with nothing to approve, marked done); then they move to the **archive**. The goal is an empty inbox. Each visitor gets an isolated in-memory session; **Reset demo** at the bottom of the sidebar resets it.
+Emails wait in an **inbox** until every action on them is approved or declined (or, with nothing to approve, marked done); then they move to the **archive**. The goal is an empty inbox. Each visitor gets an isolated in-memory session; **Reset** at the bottom of the sidebar resets it.
 
 ## Architecture
 
