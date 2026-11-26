@@ -75,7 +75,7 @@ Measured on the first 9 tickets at Claude API list prices (`support_agent/usage.
 - **Prompt caching** (on by default; `CLAUDE_PROMPT_CACHE=0` disables it) cuts per-ticket cost by ~33%.
 - **Escalation economics:** An escalated ticket costs ~$0.027 (20–26 s), but `auto` still averaged ~1/6 the cost of Opus alone while passing 9/9.
 
-Saved runs live in [`evals/results/`](evals/results/) and are viewable in the demo's **Evals** view (`admin`). Offline CI runs scripted tests, the web build, and validates all recorded runs; manual live evals authenticate via GitHub OIDC. For failure post-mortems, per-ticket eval notes, and production blueprint, see [docs/notes.md](docs/notes.md).
+Saved runs live in [`evals/results/`](evals/results/) and are viewable in the demo's **Evals** view (`admin`; [screenshot](docs/images/evals.png)). Offline CI runs scripted tests, the web build, and validates all recorded runs; manual live evals authenticate via GitHub OIDC. For failure post-mortems, per-ticket eval notes, and production blueprint, see [docs/notes.md](docs/notes.md).
 
 ## Quickstart
 
@@ -110,6 +110,8 @@ Or run in Docker (Claude only; rate-limited via `DEMO_RUNS_PER_HOUR` and `DEMO_R
 docker build -t support-triage-agent .
 docker run -p 8000:8000 -e ANTHROPIC_API_KEY -e DEMO_ACCESS_CODE=choose-one support-triage-agent
 ```
+
+The public demo runs this image on Azure Container Apps; [docs/deploy.md](docs/deploy.md) has the steps.
 
 ## Layout
 
