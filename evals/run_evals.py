@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import statistics
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from support_agent.agent import DEMO_TODAY, load_tickets  # noqa: E402
 from support_agent.escalation import auto_label, final_attempt, run_triage  # noqa: E402
 from support_agent.proposal import reply_problems  # noqa: E402
+from support_agent.usage import summarize  # noqa: E402
 from support_agent.erp import ERP  # noqa: E402
 from support_agent.providers import ProviderError, make_provider  # noqa: E402
 
@@ -87,17 +90,34 @@ def score(case: dict, result) -> dict[str, bool]:
     return checks
 
 
+def run_totals(rows: list[dict]) -> dict:
+    """What the whole run cost, how long a ticket took, and how much input came from the cache."""
+    used = [r for r in rows if r["usage"]]
+    costs = [r["usage"]["cost_usd"] for r in used]
+    seconds = [r["seconds"] for r in used if r["seconds"] is not None]
+    tokens_in = sum(r["usage"]["input_tokens"] for r in used)
+    return {
+        "cost_usd": None if any(c is None for c in costs) else round(sum(costs), 4),
+        "median_seconds": round(statistics.median(seconds), 1) if seconds else None,
+        "max_seconds": max(seconds) if seconds else None,
+        "input_tokens": tokens_in,
+        "output_tokens": sum(r["usage"]["output_tokens"] for r in used),
+        "cached_share": (sum(r["usage"]["cached_input_tokens"] for r in used) / tokens_in) if tokens_in else 0.0,
+    }
+
+
 async def main(provider_name: str, out_path: str | None) -> int:
     cases = yaml.safe_load((HERE / "cases.yaml").read_text(encoding="utf-8"))
     tickets = {t["id"]: t for t in load_tickets()}
     rows = []
     provider_label = auto_label() if provider_name == "auto" else make_provider(provider_name).name
     for case in cases:
-        escalation = None
+        escalation, usage, seconds = None, None, None
         try:
             # Pinned to the demo date: the expected answers depend on it, so AGENT_TODAY must not move it.
             result = await run_triage(tickets[case["ticket"]], ERP(), provider_name, as_of=DEMO_TODAY)
             escalation = result.escalation
+            usage, seconds = summarize(result.usage), result.seconds
             checks, error = score(case, result), result.error
             proposed = result.proposal and {
                 "category": result.proposal.category,
@@ -110,18 +130,22 @@ async def main(provider_name: str, out_path: str | None) -> int:
             checks, error, proposed = {"proposal": False}, str(e), None
         passed = all(checks.values())
         rows.append({"ticket": case["ticket"], "passed": passed, "checks": checks, "proposed": proposed,
-                     "escalation": escalation, "error": error})
+                     "escalation": escalation, "error": error, "usage": usage, "seconds": seconds})
         failed = [k for k, v in checks.items() if not v]
         note = f"  (escalated: {'; '.join(escalation['reasons'])})" if escalation else ""
-        print(f"{case['ticket']}  {'PASS' if passed else 'FAIL ' + ', '.join(failed)}{note}")
+        cost = f"  ${usage['cost_usd']:.4f}, {seconds:.0f} s" if usage and usage["cost_usd"] is not None else ""
+        print(f"{case['ticket']}  {'PASS' if passed else 'FAIL ' + ', '.join(failed)}{cost}{note}")
 
     n_pass = sum(r["passed"] for r in rows)
     n_esc = sum(bool(r["escalation"]) for r in rows)
-    print(f"\n{n_pass}/{len(rows)} cases passed ({provider_label}), {n_esc} escalated")
+    totals = run_totals(rows)
+    print(f"\n{n_pass}/{len(rows)} cases passed ({provider_label}), {n_esc} escalated; "
+          f"${totals['cost_usd']} in total, median {totals['median_seconds']} s per ticket, "
+          f"{totals['cached_share']:.0%} of input read from cache")
     out = Path(out_path) if out_path else HERE / "results" / f"{datetime.now():%Y-%m-%d-%H%M}-{provider_label.replace(':', '_').replace('->', '_to_')}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"provider": provider_label, "as_of": DEMO_TODAY.isoformat(), "passed": n_pass,
-                               "escalated": n_esc,
+                               "escalated": n_esc, "totals": totals, "prompt_cache": os.environ.get("CLAUDE_PROMPT_CACHE", "1") != "0",
                                "total": len(rows), "cases": rows}, indent=2), encoding="utf-8")
     print(f"wrote {out}")
     return 0 if n_pass == len(rows) else 1  # a failed case fails the run, also in CI

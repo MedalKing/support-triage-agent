@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Protocol
 
 import anthropic
 import httpx
+
+from .usage import CallUsage
 
 
 @dataclass
@@ -70,11 +73,15 @@ class ClaudeProvider:
     """Claude through the Messages API, with server-side refusal fallback enabled."""
 
     def __init__(self, model: str | None = None, effort: str | None = None,
-                 client: anthropic.Anthropic | None = None) -> None:
+                 client: anthropic.Anthropic | None = None, cache: bool | None = None) -> None:
         self.model = model or os.environ.get("CLAUDE_MODEL", "claude-opus-5-5")
         self.effort = effort or os.environ.get("CLAUDE_EFFORT", "medium")
         self.name = f"claude:{self.model}"
         self.client = client or _shared_anthropic_client()
+        # Each step resends the whole conversation, so caching the prefix pays off within one
+        # ticket already. CLAUDE_PROMPT_CACHE=0 turns it off, to measure the difference.
+        self.cache = cache if cache is not None else os.environ.get("CLAUDE_PROMPT_CACHE", "1") != "0"
+        self.usage: list[CallUsage] = []
 
     def start(self, system: str, user: str, tools: list[ToolSpec]) -> None:
         self.system = system
@@ -86,6 +93,7 @@ class ClaudeProvider:
         self.messages: list[dict[str, Any]] = [{"role": "user", "content": user}]
 
     def step(self) -> Turn:
+        started = time.perf_counter()
         try:
             response = self.client.beta.messages.create(
                 model=self.model,
@@ -96,12 +104,19 @@ class ClaudeProvider:
                 output_config={"effort": self.effort},
                 betas=["server-side-fallback-2026-07-01"],
                 fallbacks="default",
+                # Automatic caching: the breakpoint moves to the end of the conversation each step.
+                **({"cache_control": {"type": "ephemeral"}} if self.cache else {}),
             )
         except anthropic.APIStatusError as e:
             raise ProviderError(f"Claude API error {e.status_code}: {e.message}") from e
         except anthropic.APIConnectionError as e:
             raise ProviderError(f"Could not reach the Claude API: {e}") from e
 
+        u = response.usage
+        self.usage.append(CallUsage(
+            response.model, u.input_tokens, u.output_tokens,
+            u.cache_creation_input_tokens or 0, u.cache_read_input_tokens or 0,
+            round(time.perf_counter() - started, 3)))
         if response.stop_reason == "refusal":
             raise ProviderError("The model declined this request.")
         if response.stop_reason == "max_tokens":

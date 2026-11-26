@@ -247,6 +247,7 @@ def load_recorded(ticket: dict[str, Any], saved: dict[str, Any], erp: ERP) -> Tr
     if proposal is not None:  # policy is checked again against this visitor's ERP
         result.policy_violations = check_policy(proposal, ticket["customer_id"], erp, result.proposal_id)
     result.error = saved.get("error")
+    result.usage, result.seconds = saved.get("usage", []), saved.get("seconds")  # what the recording cost
     return result
 
 
