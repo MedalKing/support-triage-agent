@@ -59,9 +59,24 @@ def test_unclear_runs_go_to_the_strong_model(overrides, reason):
     assert names[0] == "first_attempt" and "escalated" in names  # the first try stays visible
 
 
-def test_a_corrected_model_is_escalated():
+def test_one_fixed_schema_slip_stays_with_the_fast_model():
     result = escalate(scripted("fast", {"evidence": []}, {}))  # first proposal refused, second accepted
-    assert result.provider == "strong" and "corrected" in result.escalation["reasons"][0]
+    assert result.provider == "fast" and result.escalation is None
+
+
+def test_repeated_schema_slips_are_escalated():
+    result = escalate(scripted("fast", {"evidence": []}, {"evidence": []}, {}))
+    assert result.provider == "strong"
+    assert result.escalation["reasons"] == ["the model had to be corrected (2 proposals that broke the schema)"]
+
+
+def test_a_proposal_before_any_lookup_is_escalated():
+    def hasty():
+        p = ScriptedProvider([[("submit_proposal", proposal())], LOOKUP, [("submit_proposal", proposal())]])
+        p.name = "fast"
+        return p
+    result = escalate(hasty)
+    assert result.provider == "strong" and "before looking anything up" in result.escalation["reasons"][0]
 
 
 def test_no_proposal_is_escalated():

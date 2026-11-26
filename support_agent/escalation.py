@@ -11,7 +11,9 @@ The signals are things code can check, not the model's say-so alone:
 - the category is "other" (no runbook fits),
 - no actions at all, not even no_action (the model didn't decide anything),
 - no_action sits next to real actions (the model couldn't decide whether to act),
-- the model had to be corrected first (proposal refused, or fields dropped from it).
+- the model had to be corrected first: it proposed before looking anything up, put fields on the
+  wrong action, or broke the schema more than once. A single schema slip it fixed itself doesn't
+  count: in 24 sampled Haiku runs that happened 7 times and every one of those runs passed its eval.
 """
 
 from __future__ import annotations
@@ -29,10 +31,12 @@ STRONG_MODEL = "claude-opus-5-5"
 # A fixed-up reply (invalid_reply) is not here on purpose: wording is cheap to correct and says
 # nothing about whether the investigation was right.
 CORRECTION_NOTES = {
-    "invalid_proposal": "a proposal that broke the schema",
     "proposal_without_lookup": "a proposal before looking anything up",
     "dropped_field": "an amount or address on the wrong action",
 }
+# One refused proposal that the model then fixed is a formatting slip, not a sign the ticket is hard.
+# Repeated refusals are. (Three in a row means no proposal at all, which escalates anyway.)
+SCHEMA_SLIPS_ALLOWED = 1
 
 
 def escalation_reasons(result: TriageResult) -> list[str]:
@@ -52,7 +56,11 @@ def escalation_reasons(result: TriageResult) -> list[str]:
         reasons.append("it proposed no actions at all, not even no_action")
     if "no_action" in types and len(types) > 1:
         reasons.append("it proposed taking no action and real actions at the same time")
-    corrected = sorted({CORRECTION_NOTES[s.name] for s in result.trace if s.kind == "note" and s.name in CORRECTION_NOTES})
+    notes = [s.name for s in result.trace if s.kind == "note"]
+    corrected = sorted({CORRECTION_NOTES[n] for n in notes if n in CORRECTION_NOTES})
+    schema_slips = notes.count("invalid_proposal")
+    if schema_slips > SCHEMA_SLIPS_ALLOWED:
+        corrected.append(f"{schema_slips} proposals that broke the schema")
     if corrected:
         reasons.append("the model had to be corrected (" + "; ".join(corrected) + ")")
     return reasons

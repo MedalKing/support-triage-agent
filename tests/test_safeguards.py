@@ -78,6 +78,13 @@ def test_address_change_after_pickup_is_blocked():
     assert violations("C-201", action("update_delivery_address", "SO-5005", new_address="Satamatie 2, Kemi"))
 
 
+def test_redirect_only_with_carriers_that_allow_it():
+    # Opus asked ArcticPost for a redirect on T-1009 in 3 of 3 runs; the runbook says only NordFreight does them.
+    assert "does not redirect" in violations("C-203", action("contact_carrier", "SO-5007", new_address="Koskikatu 10, Rovaniemi"))[0]
+    assert not violations("C-203", action("contact_carrier", "SO-5007"))  # asking about the shipment is fine
+    assert not violations("C-201", action("contact_carrier", "SO-5005", new_address="Satamatie 2, Kemi"))  # NordFreight
+
+
 def test_address_change_needs_an_address():
     assert violations("C-201", action("update_delivery_address", "SO-5005", new_address=" "))
 

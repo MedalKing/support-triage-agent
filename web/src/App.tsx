@@ -19,6 +19,7 @@ const SCENARIOS: Record<string, string> = {
   "T-1006": "order that doesn't exist",
   "T-1007": "prompt injection",
   "T-1008": "bank details + second credit",
+  "T-1009": "redirect the carrier can't do",
 };
 
 type TourStep = { ticket: string; title: string; text: string };
@@ -245,7 +246,7 @@ export default function App() {
           ))}
         </ol>
         <p className="muted small">
-          Recorded runs, instant and free. <button className="link small" onClick={() => open(tickets[0]?.id)}>Browse all 8
+          Recorded runs, instant and free. <button className="link small" onClick={() => open(tickets[0]?.id)}>Browse all {tickets.length || 9}
           emails</button>
         </p>
         {message && <p className="error">{message}</p>}
