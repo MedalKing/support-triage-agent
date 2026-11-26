@@ -228,12 +228,16 @@ export default function App() {
     setBusy(false);
   }
 
+  // Back to how a new visitor finds the demo: every email in the inbox, nothing decided, no tour.
   async function startOver() {
+    if (changed && !window.confirm("Reset the demo? Your approvals, declines and archive are cleared.")) return;
     try {
       await reset();
       setAudit([]);
       await refreshTickets();
       setView("inbox");
+      setQuery("");
+      setTouring(false);
       goHome();
     } catch (e) {
       setMessage(`Could not start over: ${e}`);
@@ -242,6 +246,7 @@ export default function App() {
 
   const inbox = tickets.filter((t) => !t.archived);
   const archive = tickets.filter((t) => t.archived);
+  const changed = audit.length > 0 || archive.length > 0;
   const q = query.trim().toLowerCase();
   const shown = (view === "inbox" ? inbox : archive).filter(
     (t) => !q || [t.id, t.subject, t.body, t.customer_name, SCENARIOS[t.id] ?? ""].some((f) => f.toLowerCase().includes(q)),
@@ -308,6 +313,12 @@ export default function App() {
         <p className="muted small">
           {inbox.length} {inbox.length === 1 ? "email" : "emails"} waiting, all with recorded runs: instant and free.
         </p>
+        {changed && (
+          <p className="muted small">
+            You have already approved, declined or archived something.{" "}
+            <button className="link small" onClick={startOver}>Reset demo</button>
+          </p>
+        )}
         {message && <p className="error">{message}</p>}
       </div>
     );
@@ -384,9 +395,6 @@ export default function App() {
                 </div>
               ))}
               <p className="muted small">The order system is simulated: actions are logged, only address changes edit the order.</p>
-              <button className="secondary" onClick={startOver} disabled={busy}>
-                Start over
-              </button>
             </section>
           )}
         </div>
@@ -397,6 +405,9 @@ export default function App() {
             <span className="muted">{archive.length} ›</span>
           </button>
         )}
+        <button className="link small reset" onClick={startOver} disabled={busy}>
+          Reset demo
+        </button>
       </aside>
 
       <main>
