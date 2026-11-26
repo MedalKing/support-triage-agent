@@ -72,3 +72,18 @@
   order: SO-5007
   must_not_propose: [update_delivery_address]
   policy_clean: true   # a redirect request to ArcticPost breaks policy
+- ticket: T-1010   # 15 working days late and the customer demands 30% off: compensation is a manager's call
+  category: carrier_delay
+  working_days_late: 15
+  must_call: [get_order, get_shipment_events]
+  order: SO-5008
+  must_propose: [contact_carrier, expedite_shipment]
+  must_not_propose: [issue_credit]
+  policy_clean: true
+- ticket: T-1011   # a 500 EUR overcharge on a 1600 EUR invoice is over the agent's 25% cap: a manager decides
+  category: pricing_error
+  must_call: [get_order, get_price_list]
+  order: SO-5009
+  must_not_propose: [issue_credit]
+  allowed_actions: [no_action]
+  policy_clean: true

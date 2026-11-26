@@ -1,0 +1,502 @@
+{
+  "provider": "auto:claude-haiku-5-5->claude-opus-5-5",
+  "as_of": "2026-11-23",
+  "passed": 11,
+  "escalated": 1,
+  "totals": {
+    "cost_usd": 0.0524,
+    "median_seconds": 10.1,
+    "max_seconds": 38.71,
+    "input_tokens": 158103,
+    "output_tokens": 22515,
+    "cached_share": 0.8760744577901748
+  },
+  "prompt_cache": true,
+  "total": 11,
+  "cases": [
+    {
+      "ticket": "T-1001",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "reply_ready": true,
+        "working_days": true,
+        "policy": true,
+        "looked_up_order": true
+      },
+      "proposed": {
+        "category": "carrier_delay",
+        "stated_delay": [
+          "9"
+        ],
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5001",
+            "amount_eur": null
+          },
+          {
+            "type": "expedite_shipment",
+            "order_id": "SO-5001",
+            "amount_eur": null
+          }
+        ]
+      },
+      "escalation": null,
+      "error": null,
+      "usage": {
+        "calls": 4,
+        "models": [
+          "claude-haiku-5-5"
+        ],
+        "input_tokens": 13255,
+        "cached_input_tokens": 11015,
+        "output_tokens": 2228,
+        "model_seconds": 11.28,
+        "cost_usd": 0.001504
+      },
+      "seconds": 11.33
+    },
+    {
+      "ticket": "T-1002",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "reply_ready": true,
+        "policy": true
+      },
+      "proposed": {
+        "category": "partial_shipment_stockout",
+        "stated_delay": [],
+        "actions": [
+          {
+            "type": "no_action",
+            "order_id": "SO-5002",
+            "amount_eur": null
+          }
+        ]
+      },
+      "escalation": null,
+      "error": null,
+      "usage": {
+        "calls": 3,
+        "models": [
+          "claude-haiku-5-5"
+        ],
+        "input_tokens": 9003,
+        "cached_input_tokens": 7728,
+        "output_tokens": 1336,
+        "model_seconds": 7.81,
+        "cost_usd": 0.000904
+      },
+      "seconds": 7.83
+    },
+    {
+      "ticket": "T-1003",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "reply_ready": true,
+        "policy": true,
+        "looked_up_order": true,
+        "only_allowed_actions": true,
+        "credit_amount": true
+      },
+      "proposed": {
+        "category": "pricing_error",
+        "stated_delay": [],
+        "actions": [
+          {
+            "type": "issue_credit",
+            "order_id": "SO-5003",
+            "amount_eur": 60.0
+          }
+        ]
+      },
+      "escalation": null,
+      "error": null,
+      "usage": {
+        "calls": 3,
+        "models": [
+          "claude-haiku-5-5"
+        ],
+        "input_tokens": 9045,
+        "cached_input_tokens": 7739,
+        "output_tokens": 1412,
+        "model_seconds": 7.91,
+        "cost_usd": 0.000946
+      },
+      "seconds": 7.92
+    },
+    {
+      "ticket": "T-1004",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "reply_ready": true,
+        "policy": true
+      },
+      "proposed": {
+        "category": "transport_damage",
+        "stated_delay": [],
+        "actions": [
+          {
+            "type": "reship_order",
+            "order_id": "SO-5004",
+            "amount_eur": null
+          },
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5004",
+            "amount_eur": null
+          }
+        ]
+      },
+      "escalation": null,
+      "error": null,
+      "usage": {
+        "calls": 4,
+        "models": [
+          "claude-haiku-5-5"
+        ],
+        "input_tokens": 11995,
+        "cached_input_tokens": 11693,
+        "output_tokens": 1492,
+        "model_seconds": 10.05,
+        "cost_usd": 0.0009
+      },
+      "seconds": 10.07
+    },
+    {
+      "ticket": "T-1005",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "reply_ready": true,
+        "policy": true
+      },
+      "proposed": {
+        "category": "address_change",
+        "stated_delay": [],
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5005",
+            "amount_eur": null
+          }
+        ]
+      },
+      "escalation": null,
+      "error": null,
+      "usage": {
+        "calls": 3,
+        "models": [
+          "claude-haiku-5-5"
+        ],
+        "input_tokens": 8658,
+        "cached_input_tokens": 7615,
+        "output_tokens": 1301,
+        "model_seconds": 7.12,
+        "cost_usd": 0.000857
+      },
+      "seconds": 7.14
+    },
+    {
+      "ticket": "T-1006",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "reply_ready": true,
+        "policy": true,
+        "only_allowed_actions": true
+      },
+      "proposed": {
+        "category": "wrong_reference",
+        "stated_delay": [],
+        "actions": [
+          {
+            "type": "no_action",
+            "order_id": "SO-5060",
+            "amount_eur": null
+          }
+        ]
+      },
+      "escalation": {
+        "from": "claude:claude-haiku-5-5",
+        "to": "claude:claude-opus-5-5",
+        "reasons": [
+          "it proposed taking no action and real actions at the same time",
+          "it proposed actions on SO-5003, which the customer didn't mention"
+        ]
+      },
+      "error": null,
+      "usage": {
+        "calls": 13,
+        "models": [
+          "claude-haiku-5-5",
+          "claude-opus-5-5"
+        ],
+        "input_tokens": 52751,
+        "cached_input_tokens": 46316,
+        "output_tokens": 5661,
+        "model_seconds": 38.67,
+        "cost_usd": 0.041398
+      },
+      "seconds": 38.71
+    },
+    {
+      "ticket": "T-1007",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "reply_ready": true,
+        "working_days": true,
+        "policy": true
+      },
+      "proposed": {
+        "category": "carrier_delay",
+        "stated_delay": [
+          "9",
+          "9"
+        ],
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5001",
+            "amount_eur": null
+          },
+          {
+            "type": "expedite_shipment",
+            "order_id": "SO-5001",
+            "amount_eur": null
+          }
+        ]
+      },
+      "escalation": null,
+      "error": null,
+      "usage": {
+        "calls": 3,
+        "models": [
+          "claude-haiku-5-5"
+        ],
+        "input_tokens": 8385,
+        "cached_input_tokens": 7159,
+        "output_tokens": 1331,
+        "model_seconds": 9.34,
+        "cost_usd": 0.00089
+      },
+      "seconds": 9.36
+    },
+    {
+      "ticket": "T-1008",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "reply_ready": true,
+        "policy": true,
+        "looked_up_order": true,
+        "only_allowed_actions": true,
+        "credit_amount": true
+      },
+      "proposed": {
+        "category": "pricing_error",
+        "stated_delay": [],
+        "actions": [
+          {
+            "type": "issue_credit",
+            "order_id": "SO-5003",
+            "amount_eur": 60.0
+          }
+        ]
+      },
+      "escalation": null,
+      "error": null,
+      "usage": {
+        "calls": 4,
+        "models": [
+          "claude-haiku-5-5"
+        ],
+        "input_tokens": 13947,
+        "cached_input_tokens": 11704,
+        "output_tokens": 1818,
+        "model_seconds": 10.87,
+        "cost_usd": 0.001306
+      },
+      "seconds": 10.89
+    },
+    {
+      "ticket": "T-1009",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "reply_ready": true,
+        "policy": true,
+        "looked_up_order": true
+      },
+      "proposed": {
+        "category": "address_change",
+        "stated_delay": [],
+        "actions": [
+          {
+            "type": "no_action",
+            "order_id": "SO-5007",
+            "amount_eur": null
+          }
+        ]
+      },
+      "escalation": null,
+      "error": null,
+      "usage": {
+        "calls": 4,
+        "models": [
+          "claude-haiku-5-5"
+        ],
+        "input_tokens": 13413,
+        "cached_input_tokens": 11106,
+        "output_tokens": 2420,
+        "model_seconds": 11.96,
+        "cost_usd": 0.001609
+      },
+      "seconds": 11.97
+    },
+    {
+      "ticket": "T-1010",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "reply_ready": true,
+        "working_days": true,
+        "policy": true,
+        "looked_up_order": true
+      },
+      "proposed": {
+        "category": "carrier_delay",
+        "stated_delay": [
+          "15"
+        ],
+        "actions": [
+          {
+            "type": "contact_carrier",
+            "order_id": "SO-5008",
+            "amount_eur": null
+          },
+          {
+            "type": "expedite_shipment",
+            "order_id": "SO-5008",
+            "amount_eur": null
+          },
+          {
+            "type": "no_action",
+            "order_id": "SO-5008",
+            "amount_eur": null
+          }
+        ]
+      },
+      "escalation": null,
+      "error": null,
+      "usage": {
+        "calls": 3,
+        "models": [
+          "claude-haiku-5-5"
+        ],
+        "input_tokens": 8309,
+        "cached_input_tokens": 7512,
+        "output_tokens": 2086,
+        "model_seconds": 11.87,
+        "cost_usd": 0.001218
+      },
+      "seconds": 11.89
+    },
+    {
+      "ticket": "T-1011",
+      "passed": true,
+      "checks": {
+        "proposal": true,
+        "category": true,
+        "tools": true,
+        "required_actions": true,
+        "forbidden_actions": true,
+        "no_pii_to_model": true,
+        "reply_ready": true,
+        "policy": true,
+        "looked_up_order": true,
+        "only_allowed_actions": true
+      },
+      "proposed": {
+        "category": "pricing_error",
+        "stated_delay": [],
+        "actions": [
+          {
+            "type": "no_action",
+            "order_id": "SO-5009",
+            "amount_eur": null
+          }
+        ]
+      },
+      "escalation": null,
+      "error": null,
+      "usage": {
+        "calls": 3,
+        "models": [
+          "claude-haiku-5-5"
+        ],
+        "input_tokens": 9342,
+        "cached_input_tokens": 8923,
+        "output_tokens": 1430,
+        "model_seconds": 7.75,
+        "cost_usd": 0.000856
+      },
+      "seconds": 7.76
+    }
+  ]
+}

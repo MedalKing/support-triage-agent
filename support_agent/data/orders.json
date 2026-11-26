@@ -12,7 +12,9 @@
     "SO-5004": {"customer_id": "C-204", "order_date": "2026-10-23", "status": "delivered", "lines": [{"sku": "BOX-FOOD-250", "qty": 1000, "unit_price_eur": 0.65}], "promised_date": "2026-11-08", "carrier": "BalticLine", "shipment_id": "SH-9004", "price_list": "PL-2026-Q4", "delivery_address": "Hamngatan 8, Stockholm", "invoice_total_eur": 650.0},
     "SO-5005": {"customer_id": "C-201", "order_date": "2026-11-12", "status": "shipped", "lines": [{"sku": "BOX-A4-200", "qty": 300, "unit_price_eur": 0.42}], "promised_date": "2026-11-24", "carrier": "NordFreight", "shipment_id": "SH-9005", "price_list": "PL-2026-Q4", "delivery_address": "Teollisuuskatu 5, Oulu"},
     "SO-5006": {"customer_id": "C-203", "order_date": "2026-10-06", "status": "delivered", "lines": [{"sku": "BOX-HD-500", "qty": 50, "unit_price_eur": 2.05}], "promised_date": "2026-10-20", "carrier": "ArcticPost", "shipment_id": "SH-9006", "price_list": "PL-2026-Q4", "delivery_address": "Tunturitie 3, Rovaniemi", "invoice_total_eur": 102.5},
-    "SO-5007": {"customer_id": "C-203", "order_date": "2026-11-16", "status": "shipped", "lines": [{"sku": "BOX-A4-200", "qty": 1000, "unit_price_eur": 0.42}], "promised_date": "2026-11-25", "carrier": "ArcticPost", "shipment_id": "SH-9007", "price_list": "PL-2026-Q4", "delivery_address": "Tunturitie 3, Rovaniemi", "invoice_total_eur": 420.0}
+    "SO-5007": {"customer_id": "C-203", "order_date": "2026-11-16", "status": "shipped", "lines": [{"sku": "BOX-A4-200", "qty": 1000, "unit_price_eur": 0.42}], "promised_date": "2026-11-25", "carrier": "ArcticPost", "shipment_id": "SH-9007", "price_list": "PL-2026-Q4", "delivery_address": "Tunturitie 3, Rovaniemi", "invoice_total_eur": 420.0},
+    "SO-5008": {"customer_id": "C-204", "order_date": "2026-10-20", "status": "shipped", "lines": [{"sku": "BOX-FOOD-250", "qty": 2000, "unit_price_eur": 0.65}], "promised_date": "2026-11-02", "carrier": "NordFreight", "shipment_id": "SH-9008", "price_list": "PL-2026-Q4", "delivery_address": "Hamngatan 8, Stockholm", "invoice_total_eur": 1300.0},
+    "SO-5009": {"customer_id": "C-202", "order_date": "2026-10-08", "status": "invoiced", "lines": [{"sku": "BOX-ESD-300", "qty": 1000, "unit_price_eur": 1.60}], "promised_date": "2026-10-22", "carrier": "NordFreight", "shipment_id": "SH-9009", "price_list": "PL-2026-Q3", "delivery_address": "Sähkötie 12, Lappeenranta", "invoice_id": "INV-7009", "invoice_total_eur": 1600.0}
   },
   "shipments": {
     "SH-9001": [
@@ -43,6 +45,15 @@
     "SH-9007": [
       {"ts": "2026-11-21T07:30", "event": "picked_up", "location": "Espoo DC"},
       {"ts": "2026-11-22T18:10", "event": "arrived_hub", "location": "ArcticPost terminal Oulu"}
+    ],
+    "SH-9008": [
+      {"ts": "2026-10-30T09:00", "event": "picked_up", "location": "Espoo DC"},
+      {"ts": "2026-10-31T16:20", "event": "arrived_hub", "location": "NordFreight hub Turku"},
+      {"ts": "2026-11-01T07:45", "event": "exception", "location": "NordFreight hub Turku", "note": "Trailer damaged; goods waiting to be reloaded"}
+    ],
+    "SH-9009": [
+      {"ts": "2026-10-20T08:30", "event": "picked_up", "location": "Espoo DC"},
+      {"ts": "2026-10-21T14:10", "event": "delivered", "location": "Lappeenranta"}
     ]
   },
   "stock": {
@@ -52,7 +63,7 @@
     "BOX-FOOD-250": {"on_hand": 5400, "next_restock": null}
   },
   "price_lists": {
-    "PL-2026-Q3": {"valid_until": "2026-09-30", "BOX-HD-500": 2.35},
+    "PL-2026-Q3": {"valid_until": "2026-09-30", "BOX-HD-500": 2.35, "BOX-ESD-300": 1.60},
     "PL-2026-Q4": {"valid_from": "2026-10-01", "BOX-HD-500": 2.05, "BOX-A4-200": 0.42, "BOX-ESD-300": 1.10, "BOX-FOOD-250": 0.65}
   }
 }

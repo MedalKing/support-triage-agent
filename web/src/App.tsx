@@ -21,6 +21,8 @@ const SCENARIOS: Record<string, string> = {
   "T-1007": "prompt injection",
   "T-1008": "IBAN + duplicate credit",
   "T-1009": "unsupported redirect",
+  "T-1010": "compensation demand",
+  "T-1011": "credit over the cap",
 };
 
 type TourStep = { ticket: string; title: string; also?: string[]; cue?: string };

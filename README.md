@@ -43,26 +43,33 @@ flowchart LR
 - **PII redaction (`support_agent/redact.py`):** Emails, phone numbers, IBANs, and Finnish identity codes are replaced with placeholders (`[EMAIL_1]`, etc.) in both incoming emails and tool outputs. Replies containing any placeholder are rejected back to the model.
 - **Policy in code, not prompts (`support_agent/proposal.py`):** Enforced on both proposal submission and approval — blocks duplicate credits on the same invoice without a manager, credits above 25% of the invoice, out-of-stock reships, post-pickup address changes, redirects with carriers that don't offer them, and cross-customer actions.
 - **Grounded structured output:** Proposals require at least one successful data lookup and evidence items that aren't filler, and are sent back if tool-call markup leaks into any text field. Date math (`working_days_late`) is computed in code. Runbooks are retrieved with BM25 (`support_agent/retrieval.py`).
-- **Haiku-first escalation (`support_agent/escalation.py`):** Default `auto` mode runs Claude Haiku 5.5 first and escalates to Claude Opus 5.5 on checkable signals: no usable proposal, a policy violation, low/medium confidence, no fitting category, empty or contradictory actions, or corrections that point at a weak investigation (proposing before any lookup, fields on the wrong action, repeated schema errors). A single schema slip the model fixes itself doesn't count: in a 24-run Haiku sample, 5 runs had one and all 5 passed.
+- **Haiku-first escalation (`support_agent/escalation.py`):** Default `auto` mode runs Claude Haiku 5.5 first and escalates to Claude Opus 5.5 on checkable signals: no usable proposal, a policy violation, low/medium confidence, no fitting category, empty or contradictory actions, an action on an order the customer didn't mention, or corrections that point at a weak investigation (proposing before any lookup, fields on the wrong action, repeated schema errors). A single schema slip the model fixes itself doesn't count: in a 24-run Haiku sample, 5 runs had one and all 5 passed.
 - **Safe human approval (`support_agent/api.py`):** Reviewers must explicitly tick impactful actions or decline with a reason. Approvals are bound to a specific proposal ID, validated atomically, and idempotent.
 - **Provider abstraction (`support_agent/providers.py`):** Runs on Claude (Messages API) or local models via Ollama.
 
 ## Evals
 
-Nine synthetic tickets scored deterministically (no LLM judge): category, required lookups, allowed/forbidden actions, exact credit amounts, stated working days late, policy enforcement, and zero PII leakage. This is a smoke test, not a benchmark.
+Eleven synthetic tickets scored deterministically (no LLM judge): category, required lookups, allowed/forbidden actions, exact credit amounts, stated working days late, policy enforcement, and zero PII leakage. This is a smoke test, not a benchmark.
 
-| Run (2026-11-26, final checks) | Passed | Escalated to Opus | Trace |
+| Run (2026-11-26, current checks) | Passed | Escalated to Opus | Trace |
 | --- | --- | --- | --- |
-| `auto` (Haiku 5.5 → Opus 5.5), run 1 | 9/9 | 1 (`T-1001`: contradictory actions) | [1231](evals/results/2026-11-26-1231-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
-| `auto` (Haiku 5.5 → Opus 5.5), run 2 | 9/9 | 1 (`T-1001`: no usable proposal) | [1234](evals/results/2026-11-26-1234-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
-| Claude Haiku 5.5 only | 7/9 | – | [1236](evals/results/2026-11-26-1236-claude_claude-haiku-5-5.json) |
-| Claude Opus 5.5 only (medium effort) | 8/9 | – | [1239](evals/results/2026-11-26-1239-claude_claude-opus-5-5.json) |
+| `auto` (Haiku 5.5 → Opus 5.5), run 1 | 11/11 | 2 (`T-1006`: medium confidence; `T-1010`: breaks policy) | [1404](evals/results/2026-11-26-1404-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
+| `auto` (Haiku 5.5 → Opus 5.5), run 2 | 11/11 | 1 (`T-1006`: action on an order the customer didn't mention) | [1407](evals/results/2026-11-26-1407-auto_claude-haiku-5-5_to_claude-opus-5-5.json) |
+| Claude Haiku 5.5 only | 10/11 | – | [1410](evals/results/2026-11-26-1410-claude_claude-haiku-5-5.json) |
+| Claude Opus 5.5 only (medium effort) | 10/11 | – | [1414](evals/results/2026-11-26-1414-claude_claude-opus-5-5.json) |
 
-Each model fails on its own, and each failure is one that code catches. Haiku alone proposed a credit with no amount on `T-1001` (breaks policy) and an unrequested 60 € credit next to a no-action on `T-1006` (contradictory); in `auto` both escalate to Opus. Opus alone asked ArcticPost to redirect goods on `T-1009`, which the runbook says ArcticPost doesn't do; the policy check blocks it, and in `auto` Haiku handles that ticket correctly. A [27-run Haiku sample](evals/results/2026-11-26-haiku-sample-final.json) passed 26: the miss was `T-1001` with three proposals refused in a row, which escalates. Local Qwen3 8B via Ollama scored 4/8 on an earlier suite, with code blocking its out-of-policy reship.
+**Each model fails on its own, and code catches each failure.**
+
+- **Haiku's typical miss** is a helpful but unrequested credit. Asked about an order that doesn't exist (`T-1006`), it credits 60 € on another of the customer's orders, at high confidence and within policy. An escalation signal checks for exactly this: a real action on an order the customer never mentioned, by order or invoice number. In a [33-run Haiku sample](evals/results/2026-11-26-haiku-sample-signals.json), Haiku failed 3 times, all on `T-1006` this way, and the signal caught all 3. In `auto` those tickets go to Opus, which asks the customer instead.
+- **Under pressure, Haiku sometimes breaks policy.** On `T-1010`, a customer demands 30% off a late order, and Haiku once proposed a credit. The policy check blocks it, and in `auto` Opus redoes the ticket correctly.
+- **Opus is not automatically safer.** Opus alone asked ArcticPost to redirect goods on `T-1009`, which the runbook says ArcticPost doesn't do. The policy check blocks it, and in `auto` Haiku handles that ticket correctly.
+- **`T-1011` passes with every model.** An overcharge above the 25% cap is refused, and every model left it to a manager, as the runbook says.
+
+Local Qwen3 8B via Ollama scored 4/8 on an earlier suite, with code blocking its out-of-policy reship.
 
 ### Cost and speed
 
-One run of the nine tickets per row, 2026-11-26, at Claude API prices ([results](evals/results/2026-11-26-caching/)). Every Claude call records its tokens, cached input and time (`support_agent/usage.py`), and the eval report adds them up.
+One run of the first nine tickets per row (measured before `T-1010` and `T-1011` were added), 2026-11-26, at Claude API prices ([results](evals/results/2026-11-26-caching/)). Every Claude call records its tokens, cached input and time (`support_agent/usage.py`), and the eval report adds them up.
 
 | Run | Passed | Cost per ticket | Median time per ticket | Input read from cache |
 | --- | --- | --- | --- | --- |
@@ -105,7 +112,7 @@ Run the CLI, web UI, or evals:
 ```bash
 python -m support_agent.cli T-1007
 cd web && npm ci && npm run build && cd .. && uvicorn support_agent.api:app  # http://localhost:8000
-python evals/run_evals.py                       # live evals (9 tickets)
+python evals/run_evals.py                       # live evals (11 tickets)
 python evals/record_runs.py                     # regenerate recorded tour runs
 ```
 

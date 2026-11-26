@@ -97,12 +97,15 @@ SUBMIT_PROPOSAL_TOOL = {
     "input_schema": {
         "type": "object",
         "additionalProperties": False,
-        "required": ["category", "likely_cause", "evidence", "actions", "customer_reply", "confidence"],
+        "required": ["category", "evidence", "likely_cause", "actions", "customer_reply", "confidence"],
+        # Evidence comes before the cause on purpose. With the long free-text cause first, Haiku
+        # sometimes wrote the rest of the call into it as text (6 of 12 runs on T-1001); with the
+        # evidence list first, 0 of 12. See docs/notes.md.
         "properties": {
             "category": {"type": "string", "enum": list(Category.__args__)},
-            "likely_cause": {"type": "string", "description": "One or two sentences."},
             "evidence": {"type": "array", "items": {"type": "string"},
                          "description": "At least one fact from tool results that supports the cause, with ids."},
+            "likely_cause": {"type": "string", "description": "One or two sentences."},
             "actions": {
                 "type": "array",
                 "items": {

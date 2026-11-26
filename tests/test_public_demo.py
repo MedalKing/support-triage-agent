@@ -242,3 +242,31 @@ def test_an_escalated_ticket_counts_both_attempts_usage():
                       with_usage(scripted("strong", {}), "claude-opus-5-5"))
     assert [u["model"] for u in result.usage] == ["claude-haiku-5-5", "claude-opus-5-5"]
     assert result.to_dict()["usage_summary"]["calls"] == 2 and result.seconds is not None
+
+
+def reasons_for(ticket_id, actions):
+    """Escalation reasons for a scripted proposal on a real sample ticket."""
+    order = actions[0]["order_id"]
+    provider = ScriptedProvider([[("get_order", {"order_id": order})], [("submit_proposal", proposal(actions=actions))]])
+    erp = ERP()
+    result = anyio.run(lambda: triage(TICKETS[ticket_id], provider, erp))
+    return escalation_reasons(result, TICKETS[ticket_id], erp)
+
+
+def act(type_, order_id, amount=None):
+    return {"type": type_, "order_id": order_id, "reason": "x", "amount_eur": amount, "new_address": None}
+
+
+def test_a_credit_on_an_order_the_customer_never_mentioned_escalates():
+    # T-1006 asks about SO-5060; Haiku has credited SO-5003 here at high confidence.
+    assert any("SO-5003, which the customer didn't mention" in r
+               for r in reasons_for("T-1006", [act("issue_credit", "SO-5003", 60.0)]))
+
+
+def test_an_order_named_by_its_invoice_counts_as_mentioned():
+    assert reasons_for("T-1008", [act("issue_credit", "SO-5003", 60.0)]) == []  # T-1008 names INV-7003
+
+
+def test_declining_part_of_a_request_on_the_same_order_does_not_escalate():
+    assert reasons_for("T-1010", [act("contact_carrier", "SO-5008"), act("expedite_shipment", "SO-5008"),
+                                  act("no_action", "SO-5008")]) == []

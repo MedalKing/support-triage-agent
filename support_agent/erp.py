@@ -34,6 +34,9 @@ class ERP:
         credits = [{"ticket_id": e["ticket_id"], "amount_eur": e["amount_eur"]} for e in self.approved_credits(order_id)]
         return {**out, "approved_credits": credits} if credits else out
 
+    def order_for_invoice(self, invoice_id: str) -> str | None:
+        return next((oid for oid, o in self._data["orders"].items() if o.get("invoice_id") == invoice_id), None)
+
     def customer_name(self, customer_id: str) -> str | None:
         customer = self._data["customers"].get(customer_id)
         return customer and customer["name"]
