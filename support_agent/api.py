@@ -40,6 +40,7 @@ from pydantic import BaseModel, Field, StrictInt, field_validator
 
 from .agent import TraceStep, TriageResult, load_tickets, ticket_message
 from .erp import ERP
+from . import eval_results
 from .escalation import run_triage
 from .proposal import Proposal, check_policy
 from .providers import ProviderError
@@ -346,6 +347,20 @@ def unarchive(ticket_id: str, s: Session = Depends(session)) -> dict[str, bool]:
         raise HTTPException(404, "ticket not found")
     s.archived.discard(ticket_id)
     return {"archived": False}
+
+
+# Admin and demo only: in production this would sit behind an admin role, not in the reviewer's UI.
+@app.get("/api/evals")
+def evals_list() -> list[dict[str, Any]]:
+    return eval_results.runs()
+
+
+@app.get("/api/evals/{run_id:path}")
+def evals_report(run_id: str) -> dict[str, Any]:
+    found = eval_results.report(run_id)
+    if found is None:
+        raise HTTPException(404, "no such eval run")
+    return found
 
 
 @app.get("/api/audit")

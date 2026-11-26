@@ -7,5 +7,7 @@
 .env
 web/node_modules
 web/dist
-evals
+# The admin Evals page reads the saved reports; the runner and cases stay out.
+evals/*
+!evals/results
 tests
