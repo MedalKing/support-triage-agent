@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from uuid import uuid4
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -25,6 +26,7 @@ from .proposal import (APPROVAL_REASONS, NEEDS_APPROVAL, REDIRECT_REASON, SUBMIT
                        drop_stray_fields, reply_problems)
 from .providers import Provider, ProviderError, ToolCall, ToolResult, ToolSpec
 from .redact import Redactor
+from .usage import summarize
 
 TICKETS_FILE = Path(__file__).parent / "data" / "tickets.json"
 
@@ -112,6 +114,9 @@ class TriageResult:
     recorded: bool = False  # replayed from a saved run, not run live
     # A recorded run's redactions as saved: replaying sees only the ticket, not the ERP lookups.
     saved_redactions: list[str] | None = None
+    # One entry per model call (see usage.CallUsage), over both attempts when escalated.
+    usage: list[dict[str, Any]] = field(default_factory=list)
+    seconds: float | None = None  # wall-clock time of the whole run, lookups included
 
     def to_dict(self) -> dict[str, Any]:
         proposal = None
@@ -137,6 +142,9 @@ class TriageResult:
             "redactions": (self.saved_redactions if self.saved_redactions is not None
                            else sorted(self.redactor.forward.values())),
             "error": self.error,
+            "usage": self.usage,
+            "usage_summary": summarize(self.usage),
+            "seconds": self.seconds,
         }
 
 
@@ -167,11 +175,19 @@ async def triage(
     as_of: date | None = None,
 ) -> TriageResult:
     """Run the agent on one ticket. Raises ProviderError when the model can't be reached."""
+    started = time.perf_counter()
     try:
-        return await _triage(ticket, provider, erp, transport, max_steps, as_of)
+        result = await _triage(ticket, provider, erp, transport, max_steps, as_of)
     except BaseExceptionGroup as group:
         # The MCP client runs in a task group, which wraps errors. Callers expect the error itself.
         raise _first_leaf(group) from group
+    result.usage = usage_of(provider)
+    result.seconds = round(time.perf_counter() - started, 2)
+    return result
+
+
+def usage_of(provider: Provider) -> list[dict[str, Any]]:
+    return [u.to_dict() for u in getattr(provider, "usage", [])]
 
 
 def _first_leaf(group: BaseExceptionGroup) -> BaseException:
@@ -214,6 +230,7 @@ async def _triage(
                 turn = await anyio.to_thread.run_sync(provider.step)
             except ProviderError as e:
                 e.partial = result  # what the model saw so far, for the privacy check after escalation
+                result.usage = usage_of(provider)  # and what it cost
                 raise
             if turn.text:
                 trace.append(TraceStep("model", "text", turn.text))

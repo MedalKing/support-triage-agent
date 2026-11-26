@@ -19,10 +19,11 @@ The signals are things code can check, not the model's say-so alone:
 from __future__ import annotations
 
 import os
+import time
 from datetime import date
 from typing import Any, Callable, Literal
 
-from .agent import TraceStep, TriageResult, triage
+from .agent import TraceStep, TriageResult, triage, usage_of
 from .erp import ERP
 from .providers import ClaudeProvider, Provider, ProviderError, make_provider
 
@@ -82,14 +83,16 @@ async def triage_with_escalation(
     strong = strong or (lambda: ClaudeProvider(model=os.environ.get("CLAUDE_STRONG_MODEL", STRONG_MODEL)))
 
     first_provider = fast()
+    started = time.perf_counter()
     try:
         first = await triage(ticket, first_provider, erp, transport, as_of=as_of)
         reasons = escalation_reasons(first)
-        first_trace, first_inputs = first.trace, first.model_inputs
+        first_trace, first_inputs, first_usage = first.trace, first.model_inputs, first.usage
     except ProviderError as e:  # e.g. a refusal or max_tokens on the small model
         partial = getattr(e, "partial", None)  # what the first model saw before it failed
         reasons = [f"the first model failed: {e}"]
-        first_trace, first_inputs = (partial.trace, partial.model_inputs) if partial else ([], [])
+        first_trace, first_inputs, first_usage = ((partial.trace, partial.model_inputs, partial.usage)
+                                                  if partial else ([], [], usage_of(first_provider)))
     if not reasons:
         return first
 
@@ -99,6 +102,8 @@ async def triage_with_escalation(
     second.trace[:0] = [TraceStep("note", "first_attempt", {"provider": first_provider.name})] + first_trace + [
         TraceStep("note", "escalated", {"to": second.provider, "reasons": reasons})]
     second.model_inputs[:0] = first_inputs  # both models' inputs count for the privacy check
+    second.usage[:0] = first_usage  # and both attempts count for what the ticket cost
+    second.seconds = round(time.perf_counter() - started, 2)
     return second
 
 

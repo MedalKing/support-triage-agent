@@ -60,6 +60,24 @@ Nine synthetic tickets scored deterministically (no LLM judge): category, requir
 
 Each model fails on its own, and each failure is one that code catches. Haiku alone proposed a credit with no amount on `T-1001` (breaks policy) and an unrequested 60 € credit next to a no-action on `T-1006` (contradictory); in `auto` both escalate to Opus. Opus alone asked ArcticPost to redirect goods on `T-1009`, which the runbook says ArcticPost doesn't do; the policy check blocks it, and in `auto` Haiku handles that ticket correctly. A [27-run Haiku sample](evals/results/2026-11-26-haiku-sample-final.json) passed 26: the miss was `T-1001` with three proposals refused in a row, which escalates. Local Qwen3 8B via Ollama scored 4/8 on an earlier suite, with code blocking its out-of-policy reship.
 
+### Cost and speed
+
+One run of the nine tickets per row, 2026-11-26, at Claude API prices ([results](evals/results/2026-11-26-caching/)). Every Claude call records its tokens, cached input and time (`support_agent/usage.py`), and the eval report adds them up.
+
+| Run | Passed | Cost per ticket | Median time per ticket | Input read from cache |
+| --- | --- | --- | --- | --- |
+| Haiku 5.5 only, no prompt caching | 9/9 | $0.0022 | 9.7 s | 0% |
+| Haiku 5.5 only, prompt caching | 9/9 | $0.0014 | 8.1 s | 65% |
+| Opus 5.5 only, no prompt caching | 8/9 | $0.064 | 12.9 s | 0% |
+| Opus 5.5 only, prompt caching | 8/9 | $0.043 | 13.0 s | 65% |
+| `auto`, no prompt caching (none escalated) | 9/9 | $0.0020 | 8.8 s | 0% |
+| `auto`, prompt caching (2 of 9 escalated) | 9/9 | $0.0070 | 12.3 s | 87% |
+
+- **Prompt caching cuts cost by about a third** for both models. Each step of the agent loop resends the conversation so far, so the cache pays off within a single ticket. It made Haiku about 15% faster and Opus no faster. It is on by default; `CLAUDE_PROMPT_CACHE=0` turns it off.
+- **An escalated ticket costs about $0.027** (Haiku's attempt plus Opus's), roughly 20 times a ticket Haiku finishes alone, and takes 20–26 s. With 2 of 9 escalated, `auto` still averaged a sixth of what Opus alone costs, and passed all nine; Opus alone failed `T-1009` in both runs, where the policy check blocked its redirect.
+- **At this scale the model is not the expensive part.** A thousand emails a month would cost about $1.40 with Haiku alone, about $7 with `auto` and about $43 with Opus alone. The person reviewing each proposal costs far more, which is why the design puts its effort into making review fast and safe.
+- One run per row: times vary by a few seconds between runs, and the two `auto` rows differ mostly in how many tickets escalated, not in caching.
+
 Offline CI runs scripted unit tests, the web build, and verifies that every recorded tour run passes its eval case. Manual live evals authenticate via GitHub OIDC (no stored API key). For iteration notes, failure post-mortems, and OIDC CI details, see [docs/notes.md](docs/notes.md).
 
 ## Quickstart
@@ -112,6 +130,19 @@ docs/            screenshots, tour animation and video, and engineering notes
 - **Partial PII masking:** Masks structured identifiers (emails, phones, IBANs, Finnish IDs), not names or street addresses.
 - **Simulated writes:** Only address updates mutate the mock order; other approved actions write to the audit log.
 - **Human review still required:** Evals verify structured decisions and numbers, not every sentence of the drafted reply.
+
+## From demo to production
+
+**What carries over as it is:** the boundary (the model proposes through read-only tools scoped to the sender; code checks policy at proposal and again at approval; approval is bound to one proposal), the audit log of approvals and declines with reasons, escalation on checkable signals, per-run cost and time, and the deterministic evals that gate every change.
+
+**What would change:**
+
+1. **Real systems behind the same tools.** The MCP server would call the ERP's read APIs instead of the sample data, with the customer taken from the authenticated ticket, never from model input. Approved actions would call write APIs with the proposal id as the idempotency key.
+2. **People and roles.** Reviewers sign in with company SSO, and the audit log records who they are. A blocked credit goes to a manager's queue instead of stopping at "needs a manager".
+3. **State and intake.** Tickets arrive from the helpdesk by webhook; proposals, decisions and the audit log live in a database (the log append-only), not in memory. The draft reply goes back to the helpdesk as a draft for a person to send.
+4. **Privacy.** Names and street addresses are masked too, not only structured identifiers; traces have a retention period; the data-processing terms with the model provider are reviewed.
+5. **Quality over time.** The eval set grows from real tickets, sampled and labelled. Every decline with its reason is a candidate eval case. Pass rate, escalation rate and cost per ticket are tracked per release, and a model upgrade ships only after the evals pass on it.
+6. **Operations.** Alerts on error and escalation spikes, a spend limit per workspace (the demo already has one), and the model versions pinned so behaviour doesn't change underneath.
 
 ## License
 

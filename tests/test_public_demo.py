@@ -227,3 +227,18 @@ def test_a_carrier_redirect_needs_a_tick_but_a_status_request_does_not():
     shown = anyio.run(lambda: triage(TICKETS["T-1005"], ScriptedProvider(script), ERP())).to_dict()
     assert [a["needs_approval"] for a in shown["proposal"]["actions"]] == [False, True]
     assert "somewhere else" in shown["proposal"]["actions"][1]["approval_reason"]
+
+
+def test_an_escalated_ticket_counts_both_attempts_usage():
+    from support_agent.usage import CallUsage
+
+    def with_usage(make, model):
+        def build():
+            p = make()
+            p.usage = [CallUsage(model, 100, 10)]
+            return p
+        return build
+    result = escalate(with_usage(scripted("fast", {"confidence": "medium"}), "claude-haiku-5-5"),
+                      with_usage(scripted("strong", {}), "claude-opus-5-5"))
+    assert [u["model"] for u in result.usage] == ["claude-haiku-5-5", "claude-opus-5-5"]
+    assert result.to_dict()["usage_summary"]["calls"] == 2 and result.seconds is not None
