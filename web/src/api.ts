@@ -88,3 +88,31 @@ export const moveToInbox = (id: string) =>
   call<{ archived: boolean }>(`/api/tickets/${id}/unarchive`, { method: "POST" });
 export const auditLog = () => call<AuditEntry[]>("/api/audit");
 export const reset = () => call<{ status: string }>("/api/reset", { method: "POST" });
+
+// Saved eval reports, for the admin-only Evals page.
+export type EvalRun = {
+  id: string;
+  provider: string;
+  label: string;
+  date: string;
+  time: string;
+  prompt_cache: boolean | null;
+  passed: number;
+  total: number;
+  escalated: number | null;
+  cost_per_ticket: number | null;
+  median_seconds: number | null;
+  cached_share: number | null;
+};
+export type EvalCase = {
+  ticket: string;
+  passed: boolean;
+  checks: Record<string, boolean>;
+  proposed: { category: string; actions: { type: string; order_id: string; amount_eur: number | null }[] } | null;
+  escalation: { from: string; to: string; reasons: string[] } | null;
+  error: string | null;
+  usage?: { cost_usd: number | null } | null;
+  seconds?: number | null;
+};
+export const evalRuns = () => call<EvalRun[]>("/api/evals");
+export const evalReport = (id: string) => call<EvalRun & { cases: EvalCase[] }>(`/api/evals/${id}`);

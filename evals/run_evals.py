@@ -28,6 +28,7 @@ from support_agent.agent import DEMO_TODAY, load_tickets  # noqa: E402
 from support_agent.escalation import auto_label, final_attempt, run_triage  # noqa: E402
 from support_agent.proposal import reply_problems  # noqa: E402
 from support_agent.usage import summarize  # noqa: E402
+from support_agent.eval_results import RESULTS_DIR, write_index  # noqa: E402
 from support_agent.erp import ERP  # noqa: E402
 from support_agent.providers import ProviderError, make_provider  # noqa: E402
 
@@ -148,6 +149,8 @@ async def main(provider_name: str, out_path: str | None) -> int:
                                "escalated": n_esc, "totals": totals, "prompt_cache": os.environ.get("CLAUDE_PROMPT_CACHE", "1") != "0",
                                "total": len(rows), "cases": rows}, indent=2), encoding="utf-8")
     print(f"wrote {out}")
+    if out.resolve().is_relative_to(RESULTS_DIR.resolve()):
+        write_index()  # keep evals/results/README.md in step with the folder
     return 0 if n_pass == len(rows) else 1  # a failed case fails the run, also in CI
 
 

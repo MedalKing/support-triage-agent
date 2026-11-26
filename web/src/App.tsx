@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Evals from "./Evals";
 import {
   approve, AuditEntry, auditLog, Config, decline, getConfig, listTickets, markDone, moveToInbox, recorded, reset, triage, Ticket,
   TraceStep, TriageResult,
@@ -86,6 +87,8 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [touring, setTouring] = useState(false);
   const [mobileList, setMobileList] = useState(false);
+  // The admin-only Evals page, opened from small links; it replaces the whole app while open.
+  const [showEvals, setShowEvals] = useState(false);
   const current = useRef<string | null>(null);
 
   useEffect(() => {
@@ -278,6 +281,10 @@ export default function App() {
         ? { id: escalation.ticket, label: `Next: ${escalation.ticket} →` }
         : null;
 
+  if (showEvals) {
+    return <Evals onBack={() => setShowEvals(false)} />;
+  }
+
   if (!selected) {
     return (
       <div className="landing">
@@ -308,6 +315,12 @@ export default function App() {
             </li>
           ))}
         </ol>
+        <p className="admin-link">
+          <button className="link small" onClick={() => setShowEvals(true)}>
+            Evals
+          </button>{" "}
+          <span className="tag admin">admin</span>
+        </p>
         {changed && (
           <p className="reset-inline">
             <button className="link small" onClick={startOver}>Reset demo</button>
@@ -413,9 +426,14 @@ export default function App() {
             <span className="muted">{archive.length} ›</span>
           </button>
         )}
-        <button className="link small reset" onClick={startOver} disabled={busy}>
-          Reset
-        </button>
+        <div className="side-footer">
+          <button className="link small reset" onClick={startOver} disabled={busy}>
+            Reset
+          </button>
+          <button className="link small reset" onClick={() => setShowEvals(true)} title="Admin and demo only">
+            Evals <span className="tag admin">admin</span>
+          </button>
+        </div>
       </aside>
 
       <main>

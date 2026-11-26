@@ -18,6 +18,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY support_agent/ support_agent/
+COPY evals/results/ evals/results/
 RUN pip install --no-cache-dir . && useradd --uid 10001 --no-create-home app
 COPY --from=web /web/dist web/dist
 USER app

@@ -78,6 +78,8 @@ One run of the nine tickets per row, 2026-11-26, at Claude API prices ([results]
 - **At this scale the model is not the expensive part.** A thousand emails a month would cost about $1.40 with Haiku alone, about $7 with `auto` and about $43 with Opus alone. The person reviewing each proposal costs far more, which is why the design puts its effort into making review fast and safe.
 - One run per row: times vary by a few seconds between runs, and the two `auto` rows differ mostly in how many tickets escalated, not in caching.
 
+**Where the results are:** every run is saved in [`evals/results/`](evals/results/), whose README lists the current runs (older ones, made against a less strict eval, are in `archive/`). The demo also has an **Evals** page, linked from the start page and the sidebar and marked *admin · demo only*: it shows each run and, per ticket, what was proposed, which checks failed, why it escalated, and what it cost. In production that page would sit behind an admin role, not in the reviewers' interface.
+
 Offline CI runs scripted unit tests, the web build, and verifies that every recorded tour run passes its eval case. Manual live evals authenticate via GitHub OIDC (no stored API key). For iteration notes, failure post-mortems, and OIDC CI details, see [docs/notes.md](docs/notes.md).
 
 ## Quickstart
